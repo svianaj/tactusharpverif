@@ -18,6 +18,9 @@ module load R/4.4.3
 # --------------------------------------------------
 # Hard isolation from HOME
 # --------------------------------------------------
+GCC_LIB=/usr/local/apps/gcc/13.1.0/lib64
+export LD_LIBRARY_PATH="${GCC_LIB}:${LD_LIBRARY_PATH:-}"
+
 unset R_ENVIRON_USER
 unset R_PROFILE
 unset R_PROFILE_USER
@@ -38,7 +41,7 @@ export RENV_PATHS_LIBRARY="$(pwd)/renv/library"
 export RENV_PATHS_CACHE="$(pwd)/renv/cache"
 
 # Use a GITHUB token for R installs:
-export GITHUB_PAT=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
+export GITHUB_PAT=blablebli
 
 # --------------------------------------------------
 # Bootstrap renv

@@ -60,15 +60,15 @@ class ConfigHarpverify(object):
         self.sqlites_exp_path=self.platform.get_value("extractsqlite.merged_sqlite_path") if self.eps==True else self.platform.get_value("extractsqlite.sqlite_path")
         self.sqlites_ref_path=self.platform.get_value("submission.tactusharpverif_group.ENV.REF_SQLITES")
         self.sqlites_obs_path=self.platform.get_value("submission.tactusharpverif_group.ENV.OBSTABLES_PATH")
-        self.rdss_path=self.platform.get_value("submission.tactusharpverif_group.ENV.RDSS_PATH")
-        self.pngs_path=self.platform.get_value("submission.tactusharpverif_group.ENV.PNGS_PATH")
+        self.rdss_path="RDSs"
+        self.pngs_path="PNGs"
         self.Renv_conf=self.platform.get_value("submission.tactusharpverif_group.ENV.Renv_conf")
         self.case = self.config["general.case"]
         self._case_args = None
         self._exp_args = None
         self.config_yaml = None
         self.config_yaml_filename = None
-        self.tactusverify_path=self.platform.get_value("general.plugin_registry.plugins.tactusharpverify")
+        self.tactusverify_path=self.platform.get_value("general.plugin_registry.plugins.tactusharpverif")+'tactusharpverif'
         self.eps=  True if len(self.platform.get_value("eps.general.members"))> 1 else False
         #all_refs = self.platform.get_value("submission.tactusharpverif_group.ENV.REF_NAME")
         all_refs=["GDT_iekm","IFS","IFSENS"]
@@ -97,24 +97,19 @@ class ConfigHarpverify(object):
         exp_scratch=self.sqlites_exp_path
         #Construct local_fctables:
         local_fctables=os.path.join(self.home,f"FCTABLES/",self.case,self.case,self.startyyyy,self.startmm)
-        Construct local_fctables_ref:
+        #Construct local_fctables_ref:
         local_fctables_ref=os.path.join(self.home,f"FCTABLES/",self.case) #This is where REF's folder with FCTABLES should be linked    
         if os.path.isfile(config_template):
             self._exp_args = ConfigHarpverify.load_yaml(config_template)
-            self._exp_args["verif"]["fcst_model"]=list(self.ref_name) + [self.csc_resol]
+            self._exp_args["verif"]["fcst_model"]=list(self.ref_name) + [self.experiment_name]
             self._exp_args["verif"]["project_name"]=[self.case]
             self._exp_args["verif"]["lead_time"]= f"seq(0,{self.forecast_range_nr},{self.obs_step})"
-            self._exp_args["verif"]["obs_path"]=[self.obstables_path]
-            if self.use_operational_indexing=="yes":
-                self._exp_args["verif"]["verif_path"]=[os.path.join(self.rdss_path,exp_relpath.lstrip('/').split(self.csc)[0])]
-                self._exp_args["post"]["plot_output"]=[os.path.join(self.pngs_path,exp_relpath.lstrip('/').split(self.csc)[0])]
-                self._exp_args["verif"]["fcst_path"]=[local_fctables.split(self.csc)[0]]
-            else:
-                self._exp_args["verif"]["verif_path"]=[os.path.join(self.rdss_path)]
-                self._exp_args["post"]["plot_output"]=[os.path.join(self.pngs_path)]
-                self._exp_args["verif"]["fcst_path"]=[os.path.join(self.home,f"FCTABLES/",self.case)]
+            self._exp_args["verif"]["obs_path"]=[self.obstables_path]            
+            self._exp_args["verif"]["verif_path"]=[os.path.join(self.home, self.case, self.rdss_path)]
+            self._exp_args["post"]["plot_output"]=[os.path.join(self.home, self.case, self.pngs_path)]
+            self._exp_args["verif"]["fcst_path"]=[os.path.join(self.home,f"FCTABLES/",self.case)]
             self._exp_args["scorecards"]["ref_model"]=[self.ref_name[0]]
-            self._exp_args["scorecards"]["fcst_model"]=[self.csc_resol]
+            self._exp_args["scorecards"]["fcst_model"]=[self.experiment_name]
             if write==True:
                ConfigHarpverify.save_yaml(self.config_yaml_filename, self._exp_args)
                print("wrote yml file at"+self.config_yaml_filename)
