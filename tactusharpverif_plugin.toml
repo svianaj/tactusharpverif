@@ -9,8 +9,7 @@
   SCHOST = "hpc"                             # Refers to the submission group in troika
   tasks = ["LinkOBSFCTABLES", "Verification", "Filesave"]
   WRAPPER = ""
-  delay = "PT36H"  #How long to delay (in hours) the start of the suite, refered to the nominal end of the run.
-                   #A safe value here is 24h after the end of the run, when all obs should be available and processed
+  delay = "PT36H"  # Wait after forecast end for observations and references to become available.
 
 [submission.tactusharpverif_group.BATCH]
   NAME = "#SBATCH --job-name=@TASK_NAME@"
@@ -19,20 +18,18 @@
   WALLTIME = "#SBATCH --time=01:05:00"
 
 [submission.tactusharpverif_group.ENV]
-  HARPSCRIPTS_HOME = "/ec/res4/hpcperm/sp3c/DE_Verification/verif_tools/oper-harp-verif_git/" # Path to your HARP SCRIPTS installation
-  VERIF_HOME= "/perm/sp3c/harmonie_release/tactusharpverif/tactus_harp_output/" # Root path for HARP results, config files, OBSTABLES and FCTABLES..
-  REF_SQLITES="/ec/res4/scratch/snh02/DE_Verification/REF_FCTABLES/" # Where to find sqlites for the reference models
+  HARPSCRIPTS_HOME = "/ec/res4/hpcperm/sp3c/DE_Verification/verif_tools/oper-harp-verif_git/" # Must contain verification/point_verif.R
+  VERIF_HOME= "/perm/sp3c/harmonie_release/tactusharpverif/tactus_harp_output/" # Writable root for generated configs, linked FCTABLES, RDS and plots
+  REF_SQLITES="/ec/res4/scratch/snh02/DE_Verification/REF_FCTABLES/" # Shared parent directory, used if REFERENCE_MODEL_PATHS is not set
   OBSTABLES_PATH="/ec/res4/hpcperm/snh02/DE_Verification/merged_obstables_allsources/"
-  REFERENCE_MODEL_NAMES=["GDT_iekm","IFS","IFSENS"] # Names of your reference models
-  REFERENCE_MODEL_PATHS=["/ec/res4/scratch/snh02/DE_Verification/REF_FCTABLES/"] # It can be a list if not all references are at the same main path
-  OBS_STEP=3 # Frequecy of observations. Use 1 or 3 hours, tipically
-  Renv_conf="/perm/sp3c/harmonie_release/tactusharpverif/renv_harp/Setenv"  # File to source before running R scripts to get Renv with the HARP installation
-  ECFS_ARCHIVE_RELPATH_HARPOUTPUT="tactus/harp_outputs/cases/" # Root to store the HARP results in permanent archive (remove any trailing \)
+  REFERENCE_MODEL_NAMES=["GDT_iekm","IFS","IFSENS"] # ENS-named references are selected for ensemble runs; others for deterministic runs
+  REFERENCE_MODEL_PATHS=["/ec/res4/scratch/snh02/DE_Verification/REF_FCTABLES/"] # Shared parent, or one parent per name in REFERENCE_MODEL_NAMES
+  OBS_STEP=3 # Positive whole-hour observation interval used to construct HARP lead times
+  Renv_conf="/perm/sp3c/harmonie_release/tactusharpverif/renv_harp/Setenv"  # Shell script that activates the HARP R environment
+  ECFS_ARCHIVE_RELPATH_HARPOUTPUT="tactus/harp_outputs/cases/" # Relative ECFS destination for this case's RDS and PNG outputs
 
 [submission.tactusharpverif_group.MODULES]
   ECFLOW = ["load", "ecflow"]
-  #PYTHON311 = ["load", "python3/3.11.8-01"]
-  #R433 = ["load", "R/4.4.3"]
 
 [submission.task_exceptions.LinkOBSFCTABLES.BATCH]
   WALLTIME = "#SBATCH --time=03:00:00"
@@ -40,4 +37,3 @@
   WALLTIME = "#SBATCH --time=03:00:00"
 [submission.task_exceptions.Filesave.BATCH]
   WALLTIME = "#SBATCH --time=03:00:00"
-

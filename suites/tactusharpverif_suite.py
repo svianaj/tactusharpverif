@@ -1,9 +1,12 @@
-"""Ecflow suites."""
+"""EcFlow suite definition for station-based HARP verification."""
+
+import logging
+from datetime import timedelta
 from pathlib import Path
-from ecflow import Trigger
+
 import tactus
+from tactus.datetime_utils import as_datetime, as_julian, as_timedelta
 from tactus.os_utils import tactusmakedirs
-from tactus.datetime_utils import as_datetime, as_timedelta, as_julian
 from tactus.suites.base import (
     EcflowSuiteFamily,
     EcflowSuiteTask,
@@ -11,83 +14,56 @@ from tactus.suites.base import (
     EcflowSuiteTriggers,
     SuiteDefinition,
 )
-import pandas as pd
-from datetime import datetime, timezone, time
 
-from ..methods import ConfigHarpverify 
+from ..methods import ConfigHarpverify
+
+logger = logging.getLogger(__name__)
+
+
+def _round_up_to_day(value):
+    """Return midnight at the start of the next day unless already at midnight."""
+    if value.hour == value.minute == value.second == value.microsecond == 0:
+        return value
+    return value.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
 
 
 class TactusharpverifSuiteDefinition(SuiteDefinition):
-    """Definition of suite."""
+    """Define the ordered link, verify, and archive stages."""
 
-    def __init__(
-        self,
-        config,
-        dry_run=False,
-    ):
-        """Construct the definition.
-
-        Args:
-            config (tactus.ParsedConfig): Configuration file
-            dry_run (bool, optional): Dry run not using ecflow. Defaults to False.
-
-        """
+    def __init__(self, config, dry_run=False):
         SuiteDefinition.__init__(self, config, dry_run=dry_run)
-
         self.config = config
-        self.name = "Harp_point_verif" #config["general.case"]
+        self.config_verif = ConfigHarpverify(config)
+        self.name = "Harp_point_verif"
 
         unix_group = self.platform.get_platform_value("unix_group")
         tactusmakedirs(self.joboutdir, unixgroup=unix_group)
+        python_template = (
+            Path(tactus.__path__[0]).resolve() / "templates/ecflow/default.py"
+        ).as_posix()
 
-        # Set the python_template path
-        python_template = Path(tactus.__path__[0]).resolve() / "templates/ecflow/default.py" 	 		 		
-        python_template = python_template.as_posix()
-
-        ###Set up suite start with a delay to make time for the observations and references 
-        ###to be available
-        start_datetime = as_datetime(config["general.times.start"])  # datetime object
-        forecast_range = as_timedelta(config["general.times.forecast_range"])  # timedelta
-        delay = as_timedelta(config["submission.tactusharpverif_group.delay"])  # timedelta
-
-        # Compute end_date before rounding (still datetime)
-        raw_end_date = start_datetime + forecast_range
-
-        # Round up to the next full day if not exactly at 00:00
-        if raw_end_date.time() != datetime.min.time():
-            end_date = (raw_end_date + pd.Timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-        else:
-            end_date = raw_end_date
-
-        # Compute delay_date (end_date + delay), then round up to the next full day
-        raw_delay_date = end_date + delay
-        if raw_delay_date.time() != datetime.min.time():
-            delay_date = (raw_delay_date + pd.Timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-        else:
-            delay_date = raw_delay_date
-
-        print("start_date:",   start_datetime.strftime("%Y%m%d"))
-        print("end_date:",     end_date.strftime("%Y%m%d"))
-        print("delay_date:",   delay_date.strftime("%Y%m%d"))
-
-        # We want retrieval to begin with a delay, to make sure obs data is available in OBSTABLES
-        # Use _JULIAN for looking at differences > 1 day.
-
-        delay_date_julian=as_julian(delay_date.strftime("%Y%m%d"))
-        time_trigger = (
-                f"(:ECF_JULIAN  ge {delay_date_julian})"
-                )
-        print("time_trigger is")
-        print(time_trigger)
-        self.config_verif = ConfigHarpverify(self.config)
-        case = "Case_point_verification"
-
-        case_family = EcflowSuiteFamily(
-            case,
-            self.suite,
-            self.ecf_files
+        # Wait until the forecast has ended and observations are expected to be available.
+        start_datetime = as_datetime(self.config_verif.start)
+        forecast_range = as_timedelta(self.config_verif.forecast_range)
+        delay = as_timedelta(config["submission.tactusharpverif_group.delay"])
+        if delay < timedelta(0):
+            raise ValueError("submission.tactusharpverif_group.delay must not be negative")
+        end_date = _round_up_to_day(start_datetime + forecast_range)
+        delay_date = _round_up_to_day(end_date + delay)
+        delay_date_julian = as_julian(delay_date.strftime("%Y%m%d"))
+        logger.info(
+            "Verification suite will wait until %s (forecast ends %s)",
+            delay_date.strftime("%Y-%m-%d"),
+            end_date.strftime("%Y-%m-%d"),
         )
 
+        case_family = EcflowSuiteFamily(
+            "Case_point_verification",
+            self.suite,
+            self.ecf_files,
+        )
+
+        # Stage 1: expose experiment and reference FCTABLES to HARP after the delay.
         linkobsfctables = EcflowSuiteTask(
             "LinkOBSFCTABLES",
             case_family,
@@ -96,10 +72,11 @@ class TactusharpverifSuiteDefinition(SuiteDefinition):
             self.ecf_files,
             input_template=python_template,
         )
-        # A "time-based" trigger is added differently (through ecflow).
-        # Not sure if currently tactus has its own capabilities of a time trigger
-        linkobsfctables.ecf_node.add_trigger(time_trigger)
+        linkobsfctables.ecf_node.add_trigger(
+            f"(:ECF_JULIAN ge {delay_date_julian})"
+        )
 
+        # Stage 2: run HARP only after all forecast tables are linked successfully.
         verification = EcflowSuiteTask(
             "Verification",
             case_family,
@@ -107,16 +84,16 @@ class TactusharpverifSuiteDefinition(SuiteDefinition):
             self.task_settings,
             self.ecf_files,
             input_template=python_template,
-            trigger=EcflowSuiteTriggers(EcflowSuiteTrigger(linkobsfctables))
+            trigger=EcflowSuiteTriggers(EcflowSuiteTrigger(linkobsfctables)),
         )
 
-        filesave = EcflowSuiteTask(
+        # Stage 3: archive only after verification completes successfully.
+        EcflowSuiteTask(
             "Filesave",
             case_family,
             self.config,
             self.task_settings,
             self.ecf_files,
             input_template=python_template,
-            trigger=EcflowSuiteTriggers(EcflowSuiteTrigger(verification))
+            trigger=EcflowSuiteTriggers(EcflowSuiteTrigger(verification)),
         )
-
