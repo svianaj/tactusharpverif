@@ -1,0 +1,8 @@
+[macros]
+
+[macros.case]
+  gen_macros = ["general.csc","general.case","platform.archive_root",{sqlite_path = "extractsqlite.sqlite_path"},{sqlite_path = "extractsqlite.sqlite_path"},
+    {merged_sqlite_path = "extractsqlite.merged_sqlite_path"},
+    {sqlite_model_name = "extractsqlite.sqlite_model_name"}]
+  group_macros = ["system"]
+  os_macros = ["USER"]
