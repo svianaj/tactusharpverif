@@ -38,15 +38,13 @@ class Filesave(Task):
         plot_output=exp_args["post"]["plot_output"][0]
         end_date=self.config_verif.endyyyymmddhh
         harp_scripts=self.config_verif.harpscripts_home
+        print("start file transfer to ecfs")
         print(harp_scripts)
         os.chdir(harp_scripts)
         print(verif_path)
         print(case)
         print(self.config_verif.ecfs_archive_relpath_harpoutput)
-        print(self.config_verif.huser)
-        print(' copying files from' + str(os.path.join(verif_path,case))+ ' to ec:../'+self.config_verif.huser + '/'+os.path.join(self.config_verif.huser,self.config_verif.ecfs_archive_relpath_harpoutput,exp_relpath.lstrip('/')))
-        self.config_verif.replicate_structure_to_ec(os.path.join(verif_path,case),'ec:../'+self.config_verif.huser + '/'+os.path.join(self.config_verif.huser,self.config_verif.ecfs_archive_relpath_harpoutput,exp_relpath.lstrip('/')))
-        
-        print(' copying files from' + str(os.path.join(plot_output,case))+ ' to ec:../'+self.config_verif.huser + '/'+os.path.join(self.config_verif.huser,self.config_verif.ecfs_archive_relpath_harpoutput,exp_relpath.lstrip('/')))
-        self.config_verif.replicate_structure_to_ec(os.path.join(plot_output,case),'ec:../'+self.config_verif.huser + '/'+os.path.join(self.config_verif.huser,self.config_verif.ecfs_archive_relpath_harpoutput,exp_relpath.lstrip('/')))
-
+        print(' copying files from' + str(os.path.join(verif_path,case))+ ' to ec:'+os.path.join(self.config_verif.ecfs_archive_relpath_harpoutput,case,'RDSs'))
+        self.config_verif.replicate_structure_to_ec(os.path.join(verif_path,case),'ec:'+os.path.join(self.config_verif.ecfs_archive_relpath_harpoutput,case,'RDSs'))
+        print(' copying files from' + str(os.path.join(plot_output,case))+ ' to ec:'+os.path.join(self.config_verif.ecfs_archive_relpath_harpoutput,case,'PNGs'))
+        self.config_verif.replicate_structure_to_ec(os.path.join(plot_output,case),'ec:'+os.path.join(self.config_verif.ecfs_archive_relpath_harpoutput,case,'PNGs'))

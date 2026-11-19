@@ -27,6 +27,7 @@
   REFERENCE_MODEL_PATHS=["/ec/res4/scratch/snh02/DE_Verification/REF_FCTABLES/"] # It can be a list if not all references are at the same main path
   OBS_STEP=3 # Frequecy of observations. Use 1 or 3 hours, tipically
   Renv_conf="/perm/sp3c/harmonie_release/tactusharpverif/renv_harp/Setenv"  # File to source before running R scripts to get Renv with the HARP installation
+  ECFS_ARCHIVE_RELPATH_HARPOUTPUT="tactus/harp_outputs/cases/" # Root to store the HARP results in permanent archive (remove any trailing \)
 
 [submission.tactusharpverif_group.MODULES]
   ECFLOW = ["load", "ecflow"]

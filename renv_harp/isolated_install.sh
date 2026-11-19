@@ -62,6 +62,12 @@ fi
 # Run project setup WITH bootstrap lib visible
 # --------------------------------------------------
 export ARROW_R_ALLOW_CPP17=true
+export ARROW_S3=OFF
+export ARROW_GCS=OFF
+export ARROW_MIMALLOC=OFF
+export ARROW_DEPENDENCY_SOURCE=BUNDLED
+export LIBARROW_MINIMAL=true
+export ARROW_R_DEV=true   # shows the full build log in the output
 export NOT_CRAN=true
 Rscript --vanilla - <<EOF
 .libPaths(c("$BOOTSTRAP_LIB", .libPaths()))
@@ -115,12 +121,12 @@ module load ecflow
 module load netcdf4
 module load ecmwf-toolbox/2025.04.0.0
 
+export LD_LIBRARY_PATH="/usr/local/apps/gcc/13.1.0/lib64:${LD_LIBRARY_PATH:-}"
 export R_ENVIRON_USER=/dev/null
 export R_PROFILE_USER=${PROJECT_DIR}/.Rprofile
 export RENV_PROJECT=${PROJECT_DIR}
 export RENV_CONFIG_USE_CACHE=FALSE
 
-module load R
 EOF
 
 chmod +x "${PROJECT_DIR}/Setenv"

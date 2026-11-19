@@ -68,8 +68,10 @@ class ConfigHarpverify(object):
         self._exp_args = None
         self.config_yaml = None
         self.config_yaml_filename = None
-        self.tactusverify_path=self.platform.get_value("general.plugin_registry.plugins.tactusharpverif")+'tactusharpverif'
+        self.tactusverify_path=os.path.join(self.platform.get_value("general.plugin_registry.plugins.tactusharpverif"),'tactusharpverif')
         self.eps=  True if len(self.platform.get_value("eps.general.members"))> 1 else False
+        self.ecfs_archive_relpath_harpoutput = self.platform.get_value("submission.tactusharpverif_group.ENV.ECFS_ARCHIVE_RELPATH_HARPOUTPUT")
+
         #all_refs = self.platform.get_value("submission.tactusharpverif_group.ENV.REF_NAME")
         all_refs=["GDT_iekm","IFS","IFSENS"]
         if self.eps: # Select the model references according to the type of run
@@ -78,7 +80,7 @@ class ConfigHarpverify(object):
            self.ref_name = [r for r in all_refs if "ENS" not in r.upper()]
         self.sqlites_exp_path=self.platform.get_value("extractsqlite.merged_sqlite_path") if self.eps else self.platform.get_value("extractsqlite.sqlite_path")
         self.plugin_path=self.platform.get_value("general.plugin_registry.plugins.tactusharpverif")
-        self.set_params=os.path.join(self.plugin_path,'templates','set_params_eps.R' if self.eps else 'set_params_det.R')
+        self.set_params=os.path.join(self.plugin_path,'tactusharpverif','templates','set_params_eps.R') if self.eps else os.path.join(self.plugin_path,'tactusharpverif','templates','set_params_det.R')
 
 
     def write_config_yml(self,write=True):
