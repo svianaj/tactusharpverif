@@ -1,51 +1,114 @@
-"""Example Task."""
+"""Run point verification with the configured HARP installation."""
+
+import logging
 import os
-import subprocess
-from ..methods import ConfigHarpverify
+import shlex
+
 from tactus.tasks.base import Task
 from tactus.tasks.batch import BatchJob
-import random
-#import sleep
+
+from ..methods import ConfigHarpverify
+
+logger = logging.getLogger(__name__)
 
 
 class Verification(Task):
-    """List a grib file."""
+    """Generate the HARP run configuration and execute point verification."""
+
+    PARAMETERS = (
+        "T2m,S10m,D10m,Pmsl,CCtot,S,D,RH,T,Q,Z,Pcp,AccPcp1h,Gmax,"
+        "AccPcp3h,AccPcp6h,AccPcp12h,AccPcp24h"
+    )
 
     def __init__(self, config):
-        """Construct object.
-
-        Args:
-            config (tactus.ParsedConfig): Configuration
-        """
         Task.__init__(self, config, __name__)
-
         self.config_verif = ConfigHarpverify(self.config)
         self.binary = "python3"
         self.batch = BatchJob(os.environ)
 
+    @staticmethod
+    def _snapshot_files(directory):
+        """Record output file size and modification time to detect stale results."""
+        snapshot = {}
+        for path in ConfigHarpverify.iter_files(directory):
+            stat = os.stat(path)
+            snapshot[path] = (stat.st_size, stat.st_mtime_ns)
+        return snapshot
+
+    @staticmethod
+    def _has_new_or_updated_files(before, after):
+        return any(
+            details[0] > 0 and (path not in before or before[path] != details)
+            for path, details in after.items()
+        )
+
     def execute(self):
-        print('self.config_verif.home es ' + self.config_verif.home)
-        #print(f"verif home es {self.config_verif.home} (clase) y {os.environ.get("VERIF_HOME")} (entorno)")
-        os.chdir(self.config_verif.home)
-        config_yaml_filename,exp_args = self.config_verif.write_config_yml()
-        verif_path=exp_args["verif"]["verif_path"]
-        plot_verif_path=exp_args["post"]["plot_output"]
-        #Create paths where RDS and pngs will be saved
-        for path in (*verif_path, *plot_verif_path):
-         os.makedirs(path, exist_ok=True)
-        print(config_yaml_filename)
-        start_date=self.config_verif.startyyyymmddhh
-        end_date=self.config_verif.endyyyymmddhh
-        harp_scripts=self.config_verif.harpscripts_home
-        print(harp_scripts)
-        print(os.getenv("HOME"))
-        os.chdir(harp_scripts)
-        # Wait for a random number of minutes between 0 and 5
-        delay_minutes = random.randint(0, 5)
-        print(f"Waiting for {delay_minutes} minute(s) before executing batch command...")
-        print(f"This is to prevent station list from different cases to be written simultaneously in oper-harp-verif/verification")
-        #time.sleep(delay_minutes * 60)
-        Renv_conf=self.config_verif.Renv_conf
-        self.batch.run(f"source {Renv_conf} ; Rscript {harp_scripts}/verification/point_verif.R -config_file {config_yaml_filename} -start_date {start_date} -end_date {start_date} -params_list=T2m,S10m,D10m,Pmsl,CCtot,S,D,RH,T,Q,Z,Pcp,AccPcp1h,Gmax,Pcp,AccPcp3h,AccPcp6h,AccPcp12h,AccPcp24h -params_file {self.config_verif.set_params}")
+        cfg = self.config_verif
+        logger.info(
+            "Starting HARP point verification for %s (%s through %s)",
+            cfg.case,
+            cfg.startyyyymmddhh,
+            cfg.endyyyymmddhh,
+        )
 
+        config_yaml_filename, exp_args = cfg.write_config_yml()
+        if not exp_args:
+            raise RuntimeError("HARP configuration generation returned no configuration")
 
+        harp_script = os.path.join(cfg.harpscripts_home, "verification", "point_verif.R")
+        for path, description, is_directory in (
+            (cfg.harpscripts_home, "HARP scripts directory", True),
+            (harp_script, "HARP point verification script", False),
+            (cfg.Renv_conf, "R environment activation script", False),
+            (cfg.set_params, "HARP parameter scaling file", False),
+            (cfg.obstables_path, "observation tables directory", True),
+        ):
+            exists = os.path.isdir(path) if is_directory else os.path.isfile(path)
+            if not exists:
+                raise FileNotFoundError(f"{description} not found: {path}")
+        if not any(ConfigHarpverify.iter_files(cfg.obstables_path)):
+            raise FileNotFoundError(
+                f"No observation table files found under {cfg.obstables_path}"
+            )
+
+        output_paths = (
+            *exp_args["verif"]["verif_path"],
+            *exp_args["post"]["plot_output"],
+        )
+        for path in output_paths:
+            os.makedirs(path, exist_ok=True)
+            logger.info("Output directory ready: %s", path)
+        rds_path = exp_args["verif"]["verif_path"][0]
+        plot_path = exp_args["post"]["plot_output"][0]
+        rds_before = self._snapshot_files(rds_path)
+        create_png = bool(exp_args["post"].get("create_png", False))
+        png_before = self._snapshot_files(plot_path) if create_png else {}
+
+        # Chain activation and execution so a failed environment setup cannot look successful.
+        command = " && ".join(
+            (
+                f"source {shlex.quote(cfg.Renv_conf)}",
+                "Rscript"
+                f" {shlex.quote(harp_script)}"
+                f" -config_file {shlex.quote(config_yaml_filename)}"
+                f" -start_date {shlex.quote(cfg.startyyyymmddhh)}"
+                f" -end_date {shlex.quote(cfg.endyyyymmddhh)}"
+                f" -params_list={shlex.quote(self.PARAMETERS)}"
+                f" -params_file {shlex.quote(cfg.set_params)}",
+            )
+        )
+        logger.info("Submitting HARP point verification using %s", harp_script)
+        os.chdir(cfg.harpscripts_home)
+        self.batch.run(command)
+        rds_after = self._snapshot_files(rds_path)
+        if not self._has_new_or_updated_files(rds_before, rds_after):
+            raise RuntimeError(
+                f"HARP completed without creating or updating RDS output under {rds_path}"
+            )
+        if create_png:
+            png_after = self._snapshot_files(plot_path)
+            if not self._has_new_or_updated_files(png_before, png_after):
+                raise RuntimeError(
+                    f"HARP completed without creating or updating plot output under {plot_path}"
+                )
+        logger.info("HARP point verification completed for %s", cfg.case)

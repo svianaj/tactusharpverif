@@ -1,101 +1,115 @@
-# Tactusharpverif_plugin
-Plugin interface to run harp point verification for Tactus experiments
+# Tactusharpverif
 
-# Prerrequisites:
-1.- Get the official harp scripts for operational use, available in https://github.com/harphub/oper-harp-verif
+A Tactus plugin that builds an ecFlow suite to verify a forecast against station
+observations and configured reference models using the HARP point-verification
+scripts.
 
-2.- All the needed HARP R packages can be installed through an isolated Renv installation. This can be done with the script renv_harp/isolated_install.sh which will install the renv files in renv_harp folder. This is subsequently referenced in tactusharpverify_plugin.toml to help the plugin to load the R env before running any R script.
+The suite runs three ordered tasks:
 
-3.- Alternatively, you can manually install harpv02.2 or higher. Instructions can be found here: https://harphub.github.io/harp_training_2024/get-started.html. There are some extra R packages needed by oper-harp-verif which are not usually installed with harp: "here", "argparse", "pracma" , "pals", "shinyWidgets", "cowplot", "scico", "sf". Install in R console with install.packages("here") etc..., and remember to load the R module by default in your $HOME/.bahsrc
-  
-# How to use:
-This plugin needs the config.toml file from the Tactus run that you want to verify as input. Relevant configuration of the verification paths, etc. must be updated in the file tactusharpverify_plugin.toml. 
-Check for the comments in tactusharpverify_plugin.toml to understand how to set each plugin/user specific variable:
-```
-[general.plugin_registry.plugins]
-  tactusharpverif = "/perm/sp3c/harmonie_release/"
-[suite_control]
-  suite_definition = "tactusharpverifSuiteDefinition"
-[submission]
-  submit_types = ["background_vm", "background_hpc", "parallel", "gnu", "serial", "tactusharpverif_group"]
+1. **LinkOBSFCTABLES** waits until the configured post-forecast delay has passed,
+   then validates and links experiment and reference FCTABLES into `VERIF_HOME`.
+   Forecasts that cross a month boundary are linked month by month.
+2. **Verification** writes a run-specific HARP YAML configuration, activates the
+   configured R environment, and runs `point_verif.R` for the full forecast
+   period.
+3. **Filesave** checks that the expected RDS results (and PNGs, when enabled)
+   exist, then copies them to ECFS.
 
-[submission.tactusharpverif_group]
-  SCHOST = "hpc"                             # Refers to the submission group in troika
-  tasks = ["LinkOBSFCTABLES", "Verification", "Filesave"]
-  WRAPPER = ""
-  delay = "PT36H"  #How long to delay (in hours) the start of the suite, refered to the nominal end of the run.
-                   #A safe value here is 24h after the end of the run, when all obs should be available and processed
+An error in configuration, input discovery, environment activation, HARP, or
+archiving fails the corresponding task rather than being treated as success.
 
-[submission.tactusharpverif_group.BATCH]
-  NAME = "#SBATCH --job-name=@TASK_NAME@"
-  NODES = "#SBATCH --nodes=1"
-  NTASKS = "#SBATCH --ntasks=1"
-  WALLTIME = "#SBATCH --time=01:05:00"
+## Prerequisites
 
-[submission.tactusharpverif_group.ENV]
-  HARPSCRIPTS_HOME = "/ec/res4/hpcperm/sp3c/DE_Verification/verif_tools/oper-harp-verif_git/" # Path to your HARP SCRIPTS installation
-  VERIF_HOME= "/perm/sp3c/harmonie_release/tactusharpverif/tactus_harp_output/" # Root path for HARP results, config files, OBSTABLES and FCTABLES..
-  REF_SQLITES="/ec/res4/scratch/snh02/DE_Verification/REF_FCTABLES/" # Where to find sqlites for the reference models
-  OBSTABLES_PATH="/ec/res4/hpcperm/snh02/DE_Verification/merged_obstables_allsources/"
-  REFERENCE_MODEL_NAMES=["GDT_iekm","IFS","IFSENS"] # Names of your reference models
-  REFERENCE_MODEL_PATHS=["/ec/res4/scratch/snh02/DE_Verification/REF_FCTABLES/"] # It can be a list if not all references are at the same main path
-  OBS_STEP=3 # Frequecy of observations. Use 1 or 3 hours, tipically
-  Renv_conf="/perm/sp3c/harmonie_release/tactusharpverif/renv_harp/Setenv"  # File to source before running R scripts to get Renv with the HARP installation
+1. Install the operational HARP scripts from
+   [oper-harp-verif](https://github.com/harphub/oper-harp-verif).
+2. Install the R packages required by those scripts. An isolated `renv`
+   installation can be created with `renv_harp/isolated_install.sh`; the
+   generated `Setenv` script is then referenced by the plugin configuration.
+   Alternatively, install HARP (version 0.2.2 or newer) and the extra packages
+   used by the operational scripts, including `here`, `argparse`, `pracma`,
+   `pals`, `shinyWidgets`, `cowplot`, `scico`, and `sf`.
+3. Configure the plugin settings in
+   [`tactusharpverif_plugin.toml`](./tactusharpverif_plugin.toml). In particular:
+   - `HARPSCRIPTS_HOME` must contain `verification/point_verif.R`.
+   - `VERIF_HOME` must be writable by the Tactus task user.
+   - `OBSTABLES_PATH` must point to the observation tables.
+   - `REFERENCE_MODEL_NAMES` determines which references are used. Names
+     containing `ENS` are selected for ensemble runs; other names are selected
+     for deterministic runs. At least one suitable reference is required.
+   - `REFERENCE_MODEL_PATHS` accepts one shared parent directory or one parent
+     per configured reference name. Each parent contains that model's FCTABLES
+     directory, unless the parent itself is already named after the model.
+   - `OBS_STEP` must be a positive whole-hour interval, and the forecast range
+     must be divisible by it so the generated lead-time sequence reaches the
+     forecast end.
+   - `Renv_conf` must point to a readable shell script that activates the
+     required R environment.
+   - `ECFS_ARCHIVE_RELPATH_HARPOUTPUT` must be a relative ECFS path without
+     `..` components.
 
-[submission.tactusharpverif_group.MODULES]
-  ECFLOW = ["load", "ecflow"]
-  #PYTHON311 = ["load", "python3/3.11.8-01"]
-  #R433 = ["load", "R/4.4.3"]
+## Prepare and launch a verification
 
-[submission.task_exceptions.LinkOBSFCTABLES.BATCH]
-  WALLTIME = "#SBATCH --time=03:00:00"
-[submission.task_exceptions.Verification.BATCH]
-  WALLTIME = "#SBATCH --time=03:00:00"
-[submission.task_exceptions.Filesave.BATCH]
-  WALLTIME = "#SBATCH --time=03:00:00"
-```
-Make sure to create the path VERIF_HOME 
+Use the expanded configuration of the Tactus experiment so that the original
+SQLite paths are retained when the verification case is created.
 
-## References
-It is possible to use more than one reference in the verifications. The reference sqlites should all be available in the path set in REF_SQLITES, and the names of the reference models is set in a list in REF_NAME (both variables set in tactusharpverify_plugin.toml Currently GlobalDT_iekm and IFS are used, for which a daily extraction & interpolation for verification has been set up on the on-duty team user using [extract_dt_plugin](https://github.com/destination-earth-digital-twins/extract_dt_plugin)
+1. Expand the experiment configuration (for example,
+   `my_second_test_develop.toml`) using an `expand_for_verif.toml` containing:
 
-Currently the tactusharpverify_plugin.toml is set to use the Global Digital Twin (GDT_iekm) and IFS as references, and the path for the sqlites of these references points to where they are routinely generated by the DEODE's development user (snh02). They are available for dates after Feb,1, 2025
-## Scaling units
-Finally, for solving some discrepancies with model units of a few variables between these references and the TACTUS runs, a careful setting of scaling of units must be set in the file verification/set_params.R from oper-harp-verif. A copy of the currently operational one can be found at /ec/res4/hpcperm/snh02/DE_Verification/verif_tools/oper-harp-verif_git/verification/set_params.R
-## How to launch your verification suite
-NOTE: The verification plugin looks for the information stored in the TOML config file of the case to verify and creates a verification suite plugin using the Tactus. It is highly recommended that the Tactus version (tag or commmit) installed in your system is the same as the one used to run the Tactus case. In order to know which tag was used for a specific OD case, look for "describe" in its config.toml file
+   ```toml
+   [macros]
 
-1. Get a config file of your experiment, i.e. my_second_test_develop.toml
-2. Expand the necessary variables according to expand_for_verif.toml with:
-``` 
-tactus case --config-file my_second_test_develop.toml expand_for_verif.toml --expand-config --o my_second_test_develop_expanded_from_config.toml
-```
+   [macros.case]
+   gen_macros = [
+     "general.csc",
+     "general.case",
+     "platform.archive_root",
+     { sqlite_path = "extractsqlite.sqlite_path" },
+     { sqlite_path = "extractsqlite.sqlite_path" },
+     { merged_sqlite_path = "extractsqlite.merged_sqlite_path" },
+     { sqlite_model_name = "extractsqlite.sqlite_model_name" }
+   ]
+   group_macros = ["system"]
+   os_macros = ["USER"]
+   ```
 
-where expand_for_verif.toml contains:
-```
-[macros]
+   ```sh
+   tactus case --config-file my_second_test_develop.toml expand_for_verif.toml \
+     --expand-config --o my_second_test_develop_expanded_from_config.toml
+   ```
 
-[macros.case]
-  gen_macros = ["general.csc","general.case","platform.archive_root",{sqlite_path = "extractsqlite.sqlite_path"},{sqlite_path = "extractsqlite.sqlite_path"},
-    {merged_sqlite_path = "extractsqlite.merged_sqlite_path"},
-    {sqlite_model_name = "extractsqlite.sqlite_model_name"}]
-  group_macros = ["system"]
-  os_macros = ["USER"]
-```
+2. Launch the verification using both the expanded experiment configuration and
+   the plugin configuration:
 
-This will expand the necessary paths to the sqlites of the experiment so that they're not overriden e.g. by the case name given to the verification exercise itself, when launched through the tactusharpverify plugin
+   ```sh
+   tactus case ?configure_verif --case-name my_first_tactusverif_from_expanded_config \
+     --start-suite
+   ```
 
-3. Generate the config file for the plugin and launch it:
-```
-tactus case ?configure_verif --case-name my_first_tactusverif_from_expanded_config --start-suite
-```
-where configure verif contains the expanded config file of the experiment to verify, and the tactusharpverify's plugin configuration, i.e.:
-```
---config-file
-/perm/sp3c/harmonie_release/tactus/my_second_test_develop_expanded_from_config.toml
-/perm/sp3c/harmonie_release/tactusharpverif/tactusharpverif_plugin.toml
-```
+   Supply these config files to the command:
 
+   ```text
+   --config-file
+   /path/to/my_second_test_develop_expanded_from_config.toml
+   /path/to/tactusharpverif_plugin.toml
+   ```
 
+The suite uses `general.times.start` plus `general.times.forecast_range` for the
+verification date bounds and rounds the forecast end and configured delay up to
+the next midnight for its ecFlow start trigger. Ensure the plugin's Tactus
+version is compatible with the one used to run the experiment.
 
+## References and output
 
+Reference FCTABLES must be present in the configured model directories before
+the linking task starts. The task checks that each selected reference contains
+FCTABLE SQLite files and fails if a configured reference is missing or empty.
+
+HARP RDS output and optional plots are written under `VERIF_HOME/<case>/RDSs`
+and `VERIF_HOME/<case>/PNGs`; the corresponding `config_files` directory holds
+the generated HARP YAML. Filesave copies results to the ECFS path configured by
+`ECFS_ARCHIVE_RELPATH_HARPOUTPUT`.
+
+For variables whose units differ between the experiment and references, review
+the scaling settings in the selected `set_params_det.R` or `set_params_eps.R`
+file. The corresponding operational scaling file is maintained in the HARP
+scripts installation under `verification/set_params.R`.

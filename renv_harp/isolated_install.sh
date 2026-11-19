@@ -40,8 +40,8 @@ export RENV_PATHS_ROOT="$(pwd)/renv"
 export RENV_PATHS_LIBRARY="$(pwd)/renv/library"
 export RENV_PATHS_CACHE="$(pwd)/renv/cache"
 
-# Use a GITHUB token for R installs:
-export GITHUB_PAT=blablebli
+# If private GitHub repositories are used, pass a valid GITHUB_PAT in the
+# environment when starting this script; never replace it with a placeholder.
 
 # --------------------------------------------------
 # Bootstrap renv
@@ -130,4 +130,3 @@ export RENV_CONFIG_USE_CACHE=FALSE
 EOF
 
 chmod +x "${PROJECT_DIR}/Setenv"
-

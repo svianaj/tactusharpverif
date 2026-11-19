@@ -7,7 +7,7 @@ Resulting layout (non-operational indexing)::
 
     <VERIF_HOME>/FCTABLES/<case>/                  <- harp fcst_path
         <exp_model>/<YYYY>/<MM>/FCTABLE_*.sqlite   <- one symlink per file (experiment)
-        <ref_model>                                <- symlink to <REF_SQLITES>/<ref_model>
+        <ref_model>                                <- symlink to the configured reference path
 """
 import os
 from datetime import datetime
@@ -38,7 +38,6 @@ class LinkOBSFCTABLES(Task):
         self.config_verif = ConfigHarpverify(self.config)
         self.binary = "python3"
 
-    # ------------------------------------------------------------------ helpers
     @staticmethod
     def _link(source, destination):
         """Create the symlink ``destination -> source``.
@@ -56,8 +55,9 @@ class LinkOBSFCTABLES(Task):
             logger.info(f"Replacing stale link {destination}")
             os.remove(destination)
         elif os.path.exists(destination):
-            logger.warning(f"{destination} exists and is not a symlink, skipping")
-            return False
+            raise FileExistsError(
+                f"Cannot link {source} to {destination}: destination exists and is not a symlink"
+            )
         os.symlink(source, destination)
         return True
 
@@ -89,35 +89,97 @@ class LinkOBSFCTABLES(Task):
         return path[:idx] + f"/{year}/{month}" + path[idx + len(token):]
 
     def _link_experiment(self, source_dir, destination_dir):
-        """Link every FCTABLE sqlite file of ``source_dir`` into ``destination_dir``."""
-        if not os.path.isdir(source_dir):
-            raise FileNotFoundError(
-                f"Experiment FCTABLE directory not found: {source_dir}. "
-                "Has ExtractSQLite run, and is the data still in the scratch of the TACTUS user?"
-            )
-        files = sorted(f for f in os.listdir(source_dir) if f.startswith("FCTABLE_") and f.endswith(".sqlite"))
-        if not files:
-            raise FileNotFoundError(f"No FCTABLE_*.sqlite files found in {source_dir}")
+        """Link each forecast month into the matching HARP year/month directory."""
+        cfg = self.config_verif
+        months = self._months(cfg.start, cfg.end)
+        total_files = 0
+        total_links = 0
 
-        os.makedirs(destination_dir, exist_ok=True)
-        n_new = sum(self._link(os.path.join(source_dir, f), os.path.join(destination_dir, f)) for f in files)
-        logger.info(f"Experiment FCTABLES: {len(files)} files, {n_new} new/updated links in {destination_dir}")
+        for year, month in months:
+            month_source = (
+                source_dir
+                if (year, month) == (cfg.startyyyy, cfg.startmm)
+                else self._shift_month(
+                    source_dir, cfg.startyyyy, cfg.startmm, year, month
+                )
+            )
+            if not os.path.isdir(month_source):
+                raise FileNotFoundError(
+                    f"Experiment FCTABLE directory not found: {month_source}. "
+                    "Confirm ExtractSQLite completed and the run's scratch data is available."
+                )
+
+            names = sorted(
+                name
+                for name in os.listdir(month_source)
+                if name.startswith("FCTABLE_") and name.endswith(".sqlite")
+            )
+            if not names:
+                raise FileNotFoundError(
+                    f"No FCTABLE_*.sqlite files found for {year}-{month} in {month_source}"
+                )
+            invalid_files = [
+                name for name in names if not os.path.isfile(os.path.join(month_source, name))
+            ]
+            if invalid_files:
+                raise FileNotFoundError(
+                    f"Unreadable experiment FCTABLE files in {month_source}: {invalid_files}"
+                )
+            empty_files = [
+                name for name in names if os.path.getsize(os.path.join(month_source, name)) == 0
+            ]
+            if empty_files:
+                raise ValueError(
+                    f"Empty experiment FCTABLE files in {month_source}: {empty_files}"
+                )
+
+            month_destination = os.path.join(destination_dir, year, month)
+            os.makedirs(month_destination, exist_ok=True)
+            created = sum(
+                self._link(
+                    os.path.join(month_source, name),
+                    os.path.join(month_destination, name),
+                )
+                for name in names
+            )
+            total_files += len(names)
+            total_links += created
+            logger.info(
+                f"Experiment FCTABLES for {year}-{month}: {len(names)} files, "
+                f"{created} new or updated links"
+            )
+        logger.info(
+            f"Linked {total_files} experiment FCTABLE files "
+            f"({total_links} new or updated links)"
+        )
 
     def _link_references(self, reference_root, destination_root):
         """Link the folder of each reference model into ``destination_root``."""
         missing = []
-        for ref_model in self.config_verif.ref_name:
-            source = os.path.join(reference_root, ref_model)
+        for ref_model, source in reference_root.items():
             if not os.path.isdir(source):
                 logger.error(f"FCTABLES for reference {ref_model} not found in {source}")
                 missing.append(ref_model)
                 continue
+            has_fctables = any(
+                os.path.basename(path).startswith("FCTABLE_")
+                and path.endswith(".sqlite")
+                and os.path.getsize(path) > 0
+                for path in ConfigHarpverify.iter_files(source)
+            )
+            if not has_fctables:
+                logger.error(
+                    f"No non-empty FCTABLE_*.sqlite files found for reference "
+                    f"{ref_model} in {source}"
+                )
+                missing.append(ref_model)
+                continue
             created = self._link(source, os.path.join(destination_root, ref_model))
-            logger.info(f"Reference {ref_model}: {'linked' if created else 'link already in place'}")
+            status = "linked" if created else "link already in place"
+            logger.info(f"Reference {ref_model}: {status}")
         if missing:
-            raise FileNotFoundError(f"Missing reference FCTABLES: {missing} (looked in {reference_root})")
+            raise FileNotFoundError(f"Missing or empty reference FCTABLES: {missing}")
 
-    # ------------------------------------------------------------------ task
     def execute(self):
         """Link experiment and reference FCTABLES to the harp fcst_path."""
         cfg = self.config_verif
@@ -127,10 +189,10 @@ class LinkOBSFCTABLES(Task):
 
         # Must match verif.fcst_path in write_config_yml, and the fcst_model name used there
         local_fctables_root = os.path.join(cfg.home, "FCTABLES", cfg.case)
-        local_fctables_exp = os.path.join(local_fctables_root, cfg.experiment_name, cfg.startyyyy, cfg.startmm)
+        local_fctables_exp = os.path.join(local_fctables_root, cfg.experiment_name)
 
-        logger.info(f"Experiment FCTABLES: {exp_source} -> {local_fctables_exp}")
+        logger.info(f"Preparing experiment FCTABLES from {exp_source}")
         os.makedirs(local_fctables_root, exist_ok=True)
 
         self._link_experiment(exp_source, local_fctables_exp)
-        self._link_references(cfg.sqlites_ref_path, local_fctables_root)
+        self._link_references(cfg.ref_paths, local_fctables_root)
