@@ -52,15 +52,7 @@ class Verification(Task):
     def execute(self):
         cfg = self.config_verif
         parameter = self.config.get("task.args.parameter")
-        if parameter is not None:
-            if parameter not in cfg.parameters:
-                raise ValueError(
-                    f"Verification task parameter {parameter!r} is not configured "
-                    "in submission.tactusharpverif_group.PARAMETERS"
-                )
-            parameters = parameter
-        else:
-            parameters = ",".join(cfg.parameters)
+        parameters = ",".join(cfg.parameters_for_task(parameter))
         logger.info(
             "Starting HARP point verification for %s (%s through %s)",
             cfg.case,
@@ -113,13 +105,20 @@ class Verification(Task):
         self.batch.run(command)
         rds_after = self._snapshot_files(rds_path)
         if not self._has_new_or_updated_files(rds_before, rds_after):
-            raise RuntimeError(
-                f"HARP completed without creating or updating RDS output under {rds_path}"
+            logger.warning(
+                "HARP completed without creating or updating RDS output under %s "
+                "for parameter list %s; this can happen when no applicable "
+                "observation or forecast data are available",
+                rds_path,
+                parameters,
             )
         if create_png:
             png_after = self._snapshot_files(plot_path)
             if not self._has_new_or_updated_files(png_before, png_after):
-                raise RuntimeError(
-                    f"HARP completed without creating or updating plot output under {plot_path}"
+                logger.warning(
+                    "HARP completed without creating or updating plot output under %s "
+                    "for parameter list %s",
+                    plot_path,
+                    parameters,
                 )
         logger.info("HARP point verification completed for %s", cfg.case)

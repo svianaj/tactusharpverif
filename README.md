@@ -42,16 +42,21 @@ archiving fails the corresponding task rather than being treated as success.
    - `OBS_STEP` must be a positive whole-hour interval, and the forecast range
      must be divisible by it so the generated lead-time sequence reaches the
      forecast end.
-   - `PARAMETERS` in `[submission.tactusharpverif_group]` must be a non-empty
-     list of HARP parameter names to verify. Every name must be present as a
-     top-level entry in `set_params_det.R` for deterministic runs or
-     `set_params_eps.R` for ensemble runs.
+   - `PARAMETERS_SFC` and `PARAMETERS_UA` in
+     `[submission.tactusharpverif_group]` list the surface and upper-air HARP
+     parameters to verify. Surface parameters must be non-empty; upper-air may
+     be empty. Every name must be present as a top-level entry in
+     `set_params_det.R` for deterministic runs or `set_params_eps.R` for
+     ensemble runs. Supported upper-air parameters are `Z`, `T`, `Q`, `D`, `S`,
+     and `RH`.
    - `PARALLEL` controls execution mode. The default `false` runs all parameters
      in one verification task. `true` creates a `Verification` ecFlow family with
-     one task per configured parameter. Each task receives its own Slurm batch
-     allocation and runs one HARP process, so the 8000 MiB memory limit of the
-     former single task is not shared across all parameters. Filesave waits for
-     every parameter task to complete successfully.
+     one task per configured surface parameter. The first task is named
+     `<first-SFC>_plus_UA` when upper-air parameters are configured; it passes
+     the first surface parameter followed by all upper-air parameters to
+     `point_verif.R`. Other tasks verify one surface parameter each. Each task
+     receives its own Slurm batch allocation, and Filesave waits for all surface
+     tasks to complete successfully.
    - `Renv_conf` must point to a readable shell script that activates the
      required R environment.
    - `ECFS_ARCHIVE_RELPATH_HARPOUTPUT` must be a relative ECFS path without
@@ -118,6 +123,10 @@ HARP RDS output and optional plots are written under `VERIF_HOME/<case>/RDSs`
 and `VERIF_HOME/<case>/PNGs`; the corresponding `config_files` directory holds
 the generated HARP YAML. Filesave copies results to the ECFS path configured by
 `ECFS_ARCHIVE_RELPATH_HARPOUTPUT`.
+If HARP exits successfully but produces no output for a parameter (for example,
+because applicable observation data are unavailable), verification logs a
+warning and continues; Filesave skips missing output and archives any results
+that were produced. A non-zero HARP exit status still fails the task.
 
 For variables whose units differ between the experiment and references, review
 the scaling settings in the selected `set_params_det.R` or `set_params_eps.R`

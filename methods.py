@@ -40,9 +40,38 @@ class ConfigHarpverify:
         self.obs_step = self._positive_integer_setting(
             "submission.tactusharpverif_group.ENV.OBS_STEP"
         )
-        self.parameters = self._parameters_setting(
-            "submission.tactusharpverif_group.PARAMETERS"
+        self.surface_parameters = self._parameters_setting(
+            "submission.tactusharpverif_group.PARAMETERS_SFC"
         )
+        self.upper_air_parameters = self._parameters_setting(
+            "submission.tactusharpverif_group.PARAMETERS_UA",
+            allow_empty=True,
+        )
+        overlap = set(self.surface_parameters) & set(self.upper_air_parameters)
+        if overlap:
+            raise ValueError(
+                "PARAMETERS_SFC and PARAMETERS_UA must not overlap: "
+                + ", ".join(sorted(overlap))
+            )
+        upper_air_names = {"Z", "T", "Q", "D", "S", "RH"}
+        invalid_upper_air = [
+            parameter
+            for parameter in self.upper_air_parameters
+            if parameter not in upper_air_names
+        ]
+        misclassified_surface = [
+            parameter
+            for parameter in self.surface_parameters
+            if parameter in upper_air_names
+        ]
+        if invalid_upper_air or misclassified_surface:
+            raise ValueError(
+                "Upper-air parameters must be configured in PARAMETERS_UA and "
+                "surface parameters in PARAMETERS_SFC; "
+                f"invalid UA entries: {invalid_upper_air}; "
+                f"UA entries in SFC: {misclassified_surface}"
+            )
+        self.parameters = self.surface_parameters + self.upper_air_parameters
         self.parallel = self._boolean_setting(
             "submission.tactusharpverif_group.PARALLEL"
         )
@@ -176,10 +205,14 @@ class ConfigHarpverify:
             raise ValueError(f"{key} must be a positive integer; got {value!r}")
         return parsed
 
-    def _parameters_setting(self, key):
+    def _parameters_setting(self, key, allow_empty=False):
         value = self._required_setting(key)
-        if not isinstance(value, (list, tuple)) or not value:
-            raise ValueError(f"{key} must be a non-empty list")
+        if (
+            not isinstance(value, (list, tuple))
+            or (not value and not allow_empty)
+        ):
+            expected = "a list" if allow_empty else "a non-empty list"
+            raise ValueError(f"{key} must be {expected}")
         if any(
             not isinstance(parameter, str)
             or not parameter
@@ -193,6 +226,27 @@ class ConfigHarpverify:
         if len(set(value)) != len(value):
             raise ValueError(f"{key} must not contain duplicates")
         return list(value)
+
+    def parameters_for_task(self, parameter=None):
+        """Return parameters for one task or the complete serial run."""
+        if parameter is None:
+            if not self.surface_parameters:
+                raise ValueError(
+                    "At least one surface parameter is required to verify upper-air parameters"
+                )
+            return (
+                self.surface_parameters[:1]
+                + self.upper_air_parameters
+                + self.surface_parameters[1:]
+            )
+        if parameter not in self.surface_parameters:
+            raise ValueError(
+                f"Verification task parameter {parameter!r} is not configured "
+                "in PARAMETERS_SFC"
+            )
+        if parameter == self.surface_parameters[0]:
+            return [parameter, *self.upper_air_parameters]
+        return [parameter]
 
     def _boolean_setting(self, key):
         value = self._required_setting(key)
@@ -221,7 +275,8 @@ class ConfigHarpverify:
         if missing:
             verification_type = "ensemble" if self.eps else "deterministic"
             raise ValueError(
-                f"Configured PARAMETERS missing from {os.path.basename(self.set_params)} "
+                f"Configured verification parameters missing from "
+                f"{os.path.basename(self.set_params)} "
                 f"for {verification_type} verification: {', '.join(missing)}"
             )
 

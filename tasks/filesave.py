@@ -20,14 +20,17 @@ class Filesave(Task):
         self.binary = "python3"
 
     @staticmethod
-    def _require_output_files(path, description):
+    def _has_output_files(path, description):
         if not os.path.isdir(path):
-            raise FileNotFoundError(f"{description} directory not found: {path}")
-        if not any(
+            logger.warning("%s directory not found; skipping archive: %s", description, path)
+            return False
+        if any(
             os.path.getsize(filename) > 0
             for filename in ConfigHarpverify.iter_files(path)
         ):
-            raise FileNotFoundError(f"No {description} files were produced under {path}")
+            return True
+        logger.warning("No %s files were produced under %s; skipping archive", description, path)
+        return False
 
     def execute(self):
         cfg = self.config_verif
@@ -36,7 +39,8 @@ class Filesave(Task):
         # HARP places each project's results beneath the configured output root.
         rds_source = os.path.join(exp_args["verif"]["verif_path"][0], cfg.case)
         plot_source = os.path.join(exp_args["post"]["plot_output"][0], cfg.case)
-        self._require_output_files(rds_source, "verification result")
+        if not self._has_output_files(rds_source, "verification result"):
+            return
 
         configured_archive_root = cfg.ecfs_archive_relpath_harpoutput
         if not isinstance(configured_archive_root, str):
@@ -67,9 +71,9 @@ class Filesave(Task):
         cfg.replicate_structure_to_ec(rds_source, rds_destination)
 
         if exp_args["post"].get("create_png", False):
-            self._require_output_files(plot_source, "verification plot")
-            plot_destination = "ec:" + posixpath.join(archive_root, cfg.pngs_path)
-            logger.info("Archiving verification plots: %s -> %s", plot_source, plot_destination)
-            cfg.replicate_structure_to_ec(plot_source, plot_destination)
+            if self._has_output_files(plot_source, "verification plot"):
+                plot_destination = "ec:" + posixpath.join(archive_root, cfg.pngs_path)
+                logger.info("Archiving verification plots: %s -> %s", plot_source, plot_destination)
+                cfg.replicate_structure_to_ec(plot_source, plot_destination)
         else:
             logger.info("Plot generation is disabled; skipping plot archive")

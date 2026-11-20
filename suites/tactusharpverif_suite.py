@@ -87,9 +87,16 @@ class TactusharpverifSuiteDefinition(SuiteDefinition):
                 self.ecf_files,
             )
             verification_tasks = []
-            for parameter in self.config_verif.parameters:
+            for index, parameter in enumerate(
+                self.config_verif.surface_parameters
+            ):
+                family_name = (
+                    f"{parameter}_plus_UA"
+                    if index == 0 and self.config_verif.upper_air_parameters
+                    else parameter
+                )
                 parameter_family = EcflowSuiteFamily(
-                    parameter,
+                    family_name,
                     verification_family,
                     self.ecf_files,
                 )
