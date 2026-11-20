@@ -51,6 +51,16 @@ class Verification(Task):
 
     def execute(self):
         cfg = self.config_verif
+        parameter = self.config.get("task.args.parameter")
+        if parameter is not None:
+            if parameter not in cfg.parameters:
+                raise ValueError(
+                    f"Verification task parameter {parameter!r} is not configured "
+                    "in submission.tactusharpverif_group.PARAMETERS"
+                )
+            parameters = parameter
+        else:
+            parameters = ",".join(cfg.parameters)
         logger.info(
             "Starting HARP point verification for %s (%s through %s)",
             cfg.case,
@@ -92,39 +102,11 @@ class Verification(Task):
         png_before = self._snapshot_files(plot_path) if create_png else {}
 
         activation = f"source {shlex.quote(cfg.Renv_conf)}"
-        if cfg.parallel:
-            log_directory = os.path.join(cfg.home, cfg.case, "logs")
-            os.makedirs(log_directory, exist_ok=True)
-            launches = []
-            for parameter in cfg.parameters:
-                harp_command = self._harp_command(
-                    cfg, harp_script, config_yaml_filename, parameter
-                )
-                log_path = os.path.join(
-                    log_directory, f"verification_{parameter}.log"
-                )
-                launches.append(
-                    f"{harp_command} > {shlex.quote(log_path)} 2>&1 & "
-                    'pids="$pids $!"'
-                )
-            command = (
-                activation
-                + " && ( "
-                + 'pids=""; status=0; '
-                + "; ".join(launches)
-                + "; for pid in $pids; do wait $pid || status=$?; done; "
-                + "exit $status )"
-            )
-            logger.info(
-                "Submitting %d parallel HARP point-verification processes",
-                len(cfg.parameters),
-            )
-        else:
-            harp_command = self._harp_command(
-                cfg, harp_script, config_yaml_filename, ",".join(cfg.parameters)
-            )
-            command = " && ".join((activation, harp_command))
-            logger.info("Submitting serial HARP point verification")
+        harp_command = self._harp_command(
+            cfg, harp_script, config_yaml_filename, parameters
+        )
+        command = " && ".join((activation, harp_command))
+        logger.info("Submitting HARP point verification for %s", parameters)
 
         logger.info("Using HARP point-verification script %s", harp_script)
         os.chdir(cfg.harpscripts_home)

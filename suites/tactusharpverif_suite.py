@@ -76,16 +76,48 @@ class TactusharpverifSuiteDefinition(SuiteDefinition):
             f"(:ECF_JULIAN ge {delay_date_julian})"
         )
 
-        # Stage 2: run HARP only after all forecast tables are linked successfully.
-        verification = EcflowSuiteTask(
-            "Verification",
-            case_family,
-            self.config,
-            self.task_settings,
-            self.ecf_files,
-            input_template=python_template,
-            trigger=EcflowSuiteTriggers(EcflowSuiteTrigger(linkobsfctables)),
+        # Stage 2: run HARP after all forecast tables are linked successfully.
+        verification_trigger = EcflowSuiteTriggers(
+            EcflowSuiteTrigger(linkobsfctables)
         )
+        if self.config_verif.parallel:
+            verification_family = EcflowSuiteFamily(
+                "Verification",
+                case_family,
+                self.ecf_files,
+            )
+            verification_tasks = []
+            for parameter in self.config_verif.parameters:
+                parameter_family = EcflowSuiteFamily(
+                    parameter,
+                    verification_family,
+                    self.ecf_files,
+                )
+                verification_task = EcflowSuiteTask(
+                    "Verification",
+                    parameter_family,
+                    self.config,
+                    self.task_settings,
+                    self.ecf_files,
+                    input_template=python_template,
+                    variables={
+                        "TACTUS_TASK": "Verification",
+                        "ARGS": f"parameter={parameter}",
+                    },
+                    trigger=verification_trigger,
+                )
+                verification_tasks.append(verification_task)
+            verification_complete = verification_tasks
+        else:
+            verification_complete = EcflowSuiteTask(
+                "Verification",
+                case_family,
+                self.config,
+                self.task_settings,
+                self.ecf_files,
+                input_template=python_template,
+                trigger=verification_trigger,
+            )
 
         # Stage 3: archive only after verification completes successfully.
         EcflowSuiteTask(
@@ -95,5 +127,16 @@ class TactusharpverifSuiteDefinition(SuiteDefinition):
             self.task_settings,
             self.ecf_files,
             input_template=python_template,
-            trigger=EcflowSuiteTriggers(EcflowSuiteTrigger(verification)),
+            trigger=(
+                EcflowSuiteTriggers(
+                    [
+                        EcflowSuiteTrigger(task)
+                        for task in verification_complete
+                    ]
+                )
+                if isinstance(verification_complete, list)
+                else EcflowSuiteTriggers(
+                    EcflowSuiteTrigger(verification_complete)
+                )
+            ),
         )

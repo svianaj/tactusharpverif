@@ -47,13 +47,11 @@ archiving fails the corresponding task rather than being treated as success.
      top-level entry in `set_params_det.R` for deterministic runs or
      `set_params_eps.R` for ensemble runs.
    - `PARALLEL` controls execution mode. The default `false` runs all parameters
-     in one HARP process. `true` launches one HARP process per configured
-     parameter and waits for every process to finish. Parallel processes share
-     observation and forecast inputs as read-only inputs, but write RDS and PNG
-     outputs to the configured shared directories. It can therefore increase
-     memory, CPU, and filesystem I/O usage. Keep it disabled unless the selected
-     HARP scripts and shared output layout have been verified to support
-     concurrent parameter runs.
+     in one verification task. `true` creates a `Verification` ecFlow family with
+     one task per configured parameter. Each task receives its own Slurm batch
+     allocation and runs one HARP process, so the 8000 MiB memory limit of the
+     former single task is not shared across all parameters. Filesave waits for
+     every parameter task to complete successfully.
    - `Renv_conf` must point to a readable shell script that activates the
      required R environment.
    - `ECFS_ARCHIVE_RELPATH_HARPOUTPUT` must be a relative ECFS path without
