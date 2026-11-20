@@ -371,7 +371,7 @@ class ConfigHarpverify:
                 check=False,
             )
             if check.returncode == 1:
-                subprocess.run(["emkdir", ec_target_dir], check=True)
+                subprocess.run(["emkdir", "-p", ec_target_dir], check=True)
                 logger.info("Created ECFS directory %s", ec_target_dir)
             elif check.returncode != 0:
                 raise subprocess.CalledProcessError(

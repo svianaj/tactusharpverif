@@ -60,7 +60,6 @@ class Filesave(Task):
                 "ECFS_ARCHIVE_RELPATH_HARPOUTPUT must not contain empty, '.' or '..' components"
             )
         archive_root = posixpath.join(*archive_parts)
-        archive_root = configured_archive_root.strip("/")
         archive_root = posixpath.join(archive_root, cfg.case)
 
         rds_destination = "ec:" + posixpath.join(archive_root, cfg.rdss_path)
