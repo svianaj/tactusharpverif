@@ -11,6 +11,7 @@
   WRAPPER = ""
   delay = "PT36H"  # Wait after forecast end for observations and references to become available.
   PARAMETERS = ["T2m","S10m","D10m","Pmsl","CCtot","S","D","RH","T","Q","Z","Pcp","AccPcp1h","Gmax","AccPcp3h","AccPcp6h","AccPcp12h","AccPcp24h"]
+  PARALLEL = false  # Run one HARP process per parameter; false preserves serial verification.
 
 [submission.tactusharpverif_group.BATCH]
   NAME = "#SBATCH --job-name=@TASK_NAME@"

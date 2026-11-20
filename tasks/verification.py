@@ -37,6 +37,18 @@ class Verification(Task):
             for path, details in after.items()
         )
 
+    @staticmethod
+    def _harp_command(cfg, harp_script, config_yaml_filename, parameters):
+        return (
+            "Rscript"
+            f" {shlex.quote(harp_script)}"
+            f" -config_file {shlex.quote(config_yaml_filename)}"
+            f" -start_date {shlex.quote(cfg.startyyyymmddhh)}"
+            f" -end_date {shlex.quote(cfg.endyyyymmddhh)}"
+            f" -params_list={shlex.quote(parameters)}"
+            f" -params_file {shlex.quote(cfg.set_params)}"
+        )
+
     def execute(self):
         cfg = self.config_verif
         logger.info(
@@ -79,20 +91,42 @@ class Verification(Task):
         create_png = bool(exp_args["post"].get("create_png", False))
         png_before = self._snapshot_files(plot_path) if create_png else {}
 
-        # Chain activation and execution so a failed environment setup cannot look successful.
-        command = " && ".join(
-            (
-                f"source {shlex.quote(cfg.Renv_conf)}",
-                "Rscript"
-                f" {shlex.quote(harp_script)}"
-                f" -config_file {shlex.quote(config_yaml_filename)}"
-                f" -start_date {shlex.quote(cfg.startyyyymmddhh)}"
-                f" -end_date {shlex.quote(cfg.endyyyymmddhh)}"
-                f" -params_list={shlex.quote(','.join(cfg.parameters))}"
-                f" -params_file {shlex.quote(cfg.set_params)}",
+        activation = f"source {shlex.quote(cfg.Renv_conf)}"
+        if cfg.parallel:
+            log_directory = os.path.join(cfg.home, cfg.case, "logs")
+            os.makedirs(log_directory, exist_ok=True)
+            launches = []
+            for parameter in cfg.parameters:
+                harp_command = self._harp_command(
+                    cfg, harp_script, config_yaml_filename, parameter
+                )
+                log_path = os.path.join(
+                    log_directory, f"verification_{parameter}.log"
+                )
+                launches.append(
+                    f"{harp_command} > {shlex.quote(log_path)} 2>&1 & "
+                    'pids="$pids $!"'
+                )
+            command = (
+                activation
+                + " && ( "
+                + 'pids=""; status=0; '
+                + "; ".join(launches)
+                + "; for pid in $pids; do wait $pid || status=$?; done; "
+                + "exit $status )"
             )
-        )
-        logger.info("Submitting HARP point verification using %s", harp_script)
+            logger.info(
+                "Submitting %d parallel HARP point-verification processes",
+                len(cfg.parameters),
+            )
+        else:
+            harp_command = self._harp_command(
+                cfg, harp_script, config_yaml_filename, ",".join(cfg.parameters)
+            )
+            command = " && ".join((activation, harp_command))
+            logger.info("Submitting serial HARP point verification")
+
+        logger.info("Using HARP point-verification script %s", harp_script)
         os.chdir(cfg.harpscripts_home)
         self.batch.run(command)
         rds_after = self._snapshot_files(rds_path)

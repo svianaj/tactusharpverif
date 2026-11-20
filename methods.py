@@ -43,6 +43,9 @@ class ConfigHarpverify:
         self.parameters = self._parameters_setting(
             "submission.tactusharpverif_group.PARAMETERS"
         )
+        self.parallel = self._boolean_setting(
+            "submission.tactusharpverif_group.PARALLEL"
+        )
 
         self.case = self.config["general.case"]
         if (
@@ -190,6 +193,12 @@ class ConfigHarpverify:
         if len(set(value)) != len(value):
             raise ValueError(f"{key} must not contain duplicates")
         return list(value)
+
+    def _boolean_setting(self, key):
+        value = self._required_setting(key)
+        if not isinstance(value, bool):
+            raise ValueError(f"{key} must be true or false; got {value!r}")
+        return value
 
     def _validate_parameters_in_set_params(self):
         if not os.path.isfile(self.set_params):
