@@ -42,6 +42,10 @@ archiving fails the corresponding task rather than being treated as success.
    - `OBS_STEP` must be a positive whole-hour interval, and the forecast range
      must be divisible by it so the generated lead-time sequence reaches the
      forecast end.
+   - `PARAMETERS` in `[submission.tactusharpverif_group]` must be a non-empty
+     list of HARP parameter names to verify. Every name must be present as a
+     top-level entry in `set_params_det.R` for deterministic runs or
+     `set_params_eps.R` for ensemble runs.
    - `Renv_conf` must point to a readable shell script that activates the
      required R environment.
    - `ECFS_ARCHIVE_RELPATH_HARPOUTPUT` must be a relative ECFS path without

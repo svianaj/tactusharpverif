@@ -40,6 +40,9 @@ class ConfigHarpverify:
         self.obs_step = self._positive_integer_setting(
             "submission.tactusharpverif_group.ENV.OBS_STEP"
         )
+        self.parameters = self._parameters_setting(
+            "submission.tactusharpverif_group.PARAMETERS"
+        )
 
         self.case = self.config["general.case"]
         if (
@@ -134,6 +137,7 @@ class ConfigHarpverify:
             "templates",
             "set_params_eps.R" if self.eps else "set_params_det.R",
         )
+        self._validate_parameters_in_set_params()
 
         self.config_yaml_filename = os.path.join(
             self.home,
@@ -168,6 +172,49 @@ class ConfigHarpverify:
         if parsed <= 0:
             raise ValueError(f"{key} must be a positive integer; got {value!r}")
         return parsed
+
+    def _parameters_setting(self, key):
+        value = self._required_setting(key)
+        if not isinstance(value, (list, tuple)) or not value:
+            raise ValueError(f"{key} must be a non-empty list")
+        if any(
+            not isinstance(parameter, str)
+            or not parameter
+            or "," in parameter
+            or any(character.isspace() for character in parameter)
+            for parameter in value
+        ):
+            raise ValueError(
+                f"{key} entries must be non-empty parameter names without commas or whitespace"
+            )
+        if len(set(value)) != len(value):
+            raise ValueError(f"{key} must not contain duplicates")
+        return list(value)
+
+    def _validate_parameters_in_set_params(self):
+        if not os.path.isfile(self.set_params):
+            raise FileNotFoundError(
+                f"HARP parameter scaling file not found: {self.set_params}"
+            )
+
+        try:
+            with open(self.set_params, "r", encoding="utf-8") as parameter_file:
+                contents = parameter_file.read()
+        except OSError as error:
+            raise OSError(
+                f"Could not read HARP parameter scaling file: {self.set_params}"
+            ) from error
+
+        configured = set(
+            re.findall(r"(?m)^    ([A-Za-z][A-Za-z0-9_]*)\s*=\s*list\(", contents)
+        )
+        missing = [parameter for parameter in self.parameters if parameter not in configured]
+        if missing:
+            verification_type = "ensemble" if self.eps else "deterministic"
+            raise ValueError(
+                f"Configured PARAMETERS missing from {os.path.basename(self.set_params)} "
+                f"for {verification_type} verification: {', '.join(missing)}"
+            )
 
     @staticmethod
     def _parse_datetime(value, setting):

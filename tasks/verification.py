@@ -15,11 +15,6 @@ logger = logging.getLogger(__name__)
 class Verification(Task):
     """Generate the HARP run configuration and execute point verification."""
 
-    PARAMETERS = (
-        "T2m,S10m,D10m,Pmsl,CCtot,S,D,RH,T,Q,Z,Pcp,AccPcp1h,Gmax,"
-        "AccPcp3h,AccPcp6h,AccPcp12h,AccPcp24h"
-    )
-
     def __init__(self, config):
         Task.__init__(self, config, __name__)
         self.config_verif = ConfigHarpverify(self.config)
@@ -93,7 +88,7 @@ class Verification(Task):
                 f" -config_file {shlex.quote(config_yaml_filename)}"
                 f" -start_date {shlex.quote(cfg.startyyyymmddhh)}"
                 f" -end_date {shlex.quote(cfg.endyyyymmddhh)}"
-                f" -params_list={shlex.quote(self.PARAMETERS)}"
+                f" -params_list={shlex.quote(','.join(cfg.parameters))}"
                 f" -params_file {shlex.quote(cfg.set_params)}",
             )
         )
