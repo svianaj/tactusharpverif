@@ -27,7 +27,8 @@ archiving fails the corresponding task rather than being treated as success.
    generated `Setenv` script is then referenced by the plugin configuration.
    Alternatively, install HARP (version 0.2.2 or newer) and the extra packages
    used by the operational scripts, including `here`, `argparse`, `pracma`,
-   `pals`, `shinyWidgets`, `cowplot`, `scico`, and `sf`.
+   `pals`, `shinyWidgets`, `cowplot`, `scico`, and `sf`, and make them available
+   through the configured R modules.
 3. Configure the plugin settings in
    [`tactusharpverif_plugin.toml`](./tactusharpverif_plugin.toml). In particular:
    - `HARPSCRIPTS_HOME` must contain `verification/point_verif.R`.
@@ -57,8 +58,12 @@ archiving fails the corresponding task rather than being treated as success.
      `point_verif.R`. Other tasks verify one surface parameter each. Each task
      receives its own Slurm batch allocation, and Filesave waits for all surface
      tasks to complete successfully.
-   - `Renv_conf` must point to a readable shell script that activates the
-     required R environment.
+   - Set `use_Renv` in `[submission.tactusharpverif_group]` to `true` to run
+     `source Renv_conf`; `Renv_conf` must then point to a readable shell script
+     that activates the required R environment. Set it to `false` to run the
+     `R_module_load` shell command under
+     `[submission.tactusharpverif_group.ENV]` before HARP. The example module
+     command loads the GNU programming environment and HARP.
    - `ECFS_ARCHIVE_RELPATH_HARPOUTPUT` must be a relative ECFS path without
      `..` components.
 

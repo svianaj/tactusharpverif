@@ -68,13 +68,16 @@ class Verification(Task):
         for path, description, is_directory in (
             (cfg.harpscripts_home, "HARP scripts directory", True),
             (harp_script, "HARP point verification script", False),
-            (cfg.Renv_conf, "R environment activation script", False),
             (cfg.set_params, "HARP parameter scaling file", False),
             (cfg.obstables_path, "observation tables directory", True),
         ):
             exists = os.path.isdir(path) if is_directory else os.path.isfile(path)
             if not exists:
                 raise FileNotFoundError(f"{description} not found: {path}")
+        if cfg.use_renv and not os.path.isfile(cfg.Renv_conf):
+            raise FileNotFoundError(
+                f"R environment activation script not found: {cfg.Renv_conf}"
+            )
         if not any(ConfigHarpverify.iter_files(cfg.obstables_path)):
             raise FileNotFoundError(
                 f"No observation table files found under {cfg.obstables_path}"
@@ -93,7 +96,10 @@ class Verification(Task):
         create_png = bool(exp_args["post"].get("create_png", False))
         png_before = self._snapshot_files(plot_path) if create_png else {}
 
-        activation = f"source {shlex.quote(cfg.Renv_conf)}"
+        if cfg.use_renv:
+            activation = f"source {shlex.quote(cfg.Renv_conf)}"
+        else:
+            activation = cfg.R_module_load
         harp_command = self._harp_command(
             cfg, harp_script, config_yaml_filename, parameters
         )

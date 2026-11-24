@@ -34,9 +34,22 @@ class ConfigHarpverify:
         self.harpscripts_home = self._configured_path(
             "submission.tactusharpverif_group.ENV.HARPSCRIPTS_HOME"
         )
-        self.Renv_conf = self._configured_path(
-            "submission.tactusharpverif_group.ENV.Renv_conf"
+        self.use_renv = self._boolean_setting(
+            "submission.tactusharpverif_group.use_Renv"
         )
+        if self.use_renv:
+            self.Renv_conf = self._configured_path(
+                "submission.tactusharpverif_group.ENV.Renv_conf"
+            )
+        else:
+            self.R_module_load = self._required_setting(
+                "submission.tactusharpverif_group.ENV.R_module_load"
+            )
+            if not isinstance(self.R_module_load, str) or not self.R_module_load.strip():
+                raise ValueError(
+                    "submission.tactusharpverif_group.ENV.R_module_load "
+                    "must be a non-empty shell command"
+                )
         self.obs_step = self._positive_integer_setting(
             "submission.tactusharpverif_group.ENV.OBS_STEP"
         )
