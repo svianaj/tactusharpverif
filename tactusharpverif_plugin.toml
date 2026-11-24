@@ -10,7 +10,7 @@
   tasks = ["LinkOBSFCTABLES", "Verification", "Filesave"]
   WRAPPER = ""
   delay = "PT36H"  # Wait after forecast end for observations and references to become available.
-  PARAMETERS_SFC = ["T2m","S10m","D10m","Pmsl","CCtot","Pcp","AccPcp1h","Gmax","AccPcp3h","AccPcp6h","AccPcp12h","AccPcp24h"]
+  PARAMETERS_SFC = ["T2m","RH2m","Q2m","S10m","D10m","Pmsl","CCtot","Pcp","AccPcp1h","Gmax","AccPcp3h","AccPcp6h","AccPcp12h","AccPcp24h"]
   PARAMETERS_UA = ["Z","T","Q","D","S","RH"]
   PARALLEL = false  # Run one HARP process per parameter; false preserves serial verification.
   use_Renv = false  # Set false to activate HARP through the configured R module command.
