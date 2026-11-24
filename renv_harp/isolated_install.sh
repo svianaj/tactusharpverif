@@ -1,10 +1,27 @@
 #!/usr/bin/env bash
+#SBATCH --job-name=harp_renv
+#SBATCH --qos=nf
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=04:00:00
+#SBATCH --output=install_outputjob.%j
+#
+# Usage (from the renv_harp directory):
+#   sbatch isolated_install.sh
+#
+# Optional, only for private GitHub repositories. Either:
+#   - put the token in ~/.github_pat (chmod 600), or
+#   - export GITHUB_PAT=... and submit with: sbatch --export=ALL isolated_install.sh
+# Never hardcode the token in this file.
+
 set -euo pipefail
 
+# Under sbatch the script is copied to a spool dir, so use the submit dir
+cd "${SLURM_SUBMIT_DIR:-$(pwd)}"
 PROJECT_DIR="$(pwd)"
 
 echo "=== Creating isolated renv in ${PROJECT_DIR} ==="
-
+echo "=== Host: $(hostname) | Job: ${SLURM_JOB_ID:-interactive} | $(date) ==="
 
 # --------------------------------------------------
 # Modules
@@ -14,6 +31,20 @@ module load prgenv/gnu
 module load netcdf4
 module load ecmwf-toolbox/2025.04.0.0
 module load R/4.4.3
+
+# --------------------------------------------------
+# Build performance: node-local temp dir, no double parallelism
+# --------------------------------------------------
+# R builds packages under TMPDIR. Compiling on Lustre ($HPCPERM) is very slow
+# and was the likely cause of the "worker process timed out" failures.
+export TMPDIR="${TMPDIR:-/tmp}/${USER}-renv-build-${SLURM_JOB_ID:-$$}"
+mkdir -p "$TMPDIR"
+trap 'rm -rf "$TMPDIR"' EXIT
+
+# renv runs its own parallel workers; keep make single-level to avoid
+# oversubscribing the 8 allocated cores.
+export MAKEFLAGS="-j4"
+export RENV_CONFIG_INSTALL_PARALLEL=1
 
 # --------------------------------------------------
 # Hard isolation from HOME
@@ -28,25 +59,32 @@ unset R_LIBS
 unset R_LIBS_USER
 
 export R_ENVIRON_USER=/dev/null
-export R_PROFILE_USER="$(pwd)/.Rprofile"
+export R_PROFILE_USER="${PROJECT_DIR}/.Rprofile"
 
 # --------------------------------------------------
 # renv paths (project-local)
 # --------------------------------------------------
-export RENV_PROJECT="$(pwd)"
+export RENV_PROJECT="${PROJECT_DIR}"
 export RENV_CONFIG_USE_CACHE=FALSE
 export RENV_PROJECT_SANDBOX=TRUE
-export RENV_PATHS_ROOT="$(pwd)/renv"
-export RENV_PATHS_LIBRARY="$(pwd)/renv/library"
-export RENV_PATHS_CACHE="$(pwd)/renv/cache"
+export RENV_PATHS_ROOT="${PROJECT_DIR}/renv"
+export RENV_PATHS_LIBRARY="${PROJECT_DIR}/renv/library"
+export RENV_PATHS_CACHE="${PROJECT_DIR}/renv/cache"
 
-# If private GitHub repositories are used, pass a valid GITHUB_PAT in the
-# environment when starting this script; never replace it with a placeholder.
+# GitHub token for private repositories: environment first, then file.
+if [ -z "${GITHUB_PAT:-}" ] && [ -r "${HOME}/.github_pat" ]; then
+    GITHUB_PAT="$(< "${HOME}/.github_pat")"
+fi
+if [ -n "${GITHUB_PAT:-}" ]; then
+    export GITHUB_PAT
+else
+    echo "WARNING: GITHUB_PAT not set; private GitHub packages will fail" >&2
+fi
 
 # --------------------------------------------------
 # Bootstrap renv
 # --------------------------------------------------
-BOOTSTRAP_LIB="$(pwd)/.bootstrap_lib"
+BOOTSTRAP_LIB="${PROJECT_DIR}/.bootstrap_lib"
 mkdir -p "$BOOTSTRAP_LIB"
 
 if [ ! -d "$BOOTSTRAP_LIB/renv" ]; then
@@ -121,7 +159,7 @@ module load ecflow
 module load netcdf4
 module load ecmwf-toolbox/2025.04.0.0
 
-export LD_LIBRARY_PATH="/usr/local/apps/gcc/13.1.0/lib64:${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="/usr/local/apps/gcc/13.1.0/lib64:\${LD_LIBRARY_PATH:-}"
 export R_ENVIRON_USER=/dev/null
 export R_PROFILE_USER=${PROJECT_DIR}/.Rprofile
 export RENV_PROJECT=${PROJECT_DIR}
@@ -130,3 +168,4 @@ export RENV_CONFIG_USE_CACHE=FALSE
 EOF
 
 chmod +x "${PROJECT_DIR}/Setenv"
+echo "=== Done: $(date) ==="
