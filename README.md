@@ -21,7 +21,7 @@ archiving fails the corresponding task rather than being treated as success.
 ## Prerequisites
 
 1. Install the operational HARP scripts from
-   [oper-harp-verif](https://github.com/harphub/oper-harp-verif). Instead of the last version of the "main" branch, checkout commit d997bb6e361efd2dae781bcefb681795e4fce51e from Aug,31st while some issues with commits after that date are sorted out.
+   [oper-harp-verif](https://github.com/harphub/oper-harp-verif). Use the most recent version of the "main" branch.
 2. Install the R packages required by those scripts. Several options are available:
    2.1 Custom HARP installation.
    - An isolated `renv`installation can be created by using `renv_harp/isolated_install.sh`; on ATOS, it can be sent as a job to the queue. The
