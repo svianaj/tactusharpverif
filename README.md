@@ -76,7 +76,13 @@ Use the expanded configuration of the Tactus experiment so that the original
 SQLite paths are retained when the verification case is created.
 
 1. Expand the experiment configuration (for example,
-   `my_second_test_develop.toml`) using an `expand_for_verif.toml` containing:
+   `my_second_test_develop.toml`):
+
+   ```sh
+   tactus case --config-file my_second_test_develop.toml expand_for_verif.toml \
+     --expand-config --o my_second_test_develop_expanded_from_config.toml
+   ```
+   Here `expand_for_verif.toml` defines which parts of the original config file will be expanded. Please note that the expansion should be run by the same user who ran the case, in order to get the correct paths to the sqlites:
 
    ```toml
    [macros]
@@ -95,26 +101,24 @@ SQLite paths are retained when the verification case is created.
    os_macros = ["USER"]
    ```
 
-   ```sh
-   tactus case --config-file my_second_test_develop.toml expand_for_verif.toml \
-     --expand-config --o my_second_test_develop_expanded_from_config.toml
-   ```
-
-2. Launch the verification using both the expanded experiment configuration and
+3. Give a "case name" to the verification exercise, and launch the verification plugin using both the expanded experiment configuration and
    the plugin configuration:
-
    ```sh
-   tactus case ?configure_verif --case-name my_first_tactusverif_from_expanded_config \
-     --start-suite
+   tactus case --config-file /path/to/my_second_test_develop_expanded_from_config.toml /path/to/tactusharpverif_plugin.toml \
+   --case-name my_first_tactusverif_from_expanded_config --start-suite
    ```
-
-   Supply these config files to the command:
-
+   or alternatively, create a file e.g. configure_verif with the config files:
    ```text
    --config-file
    /path/to/my_second_test_develop_expanded_from_config.toml
    /path/to/tactusharpverif_plugin.toml
    ```
+   and launch the plugin with:
+   ```sh
+   tactus case ?configure_verif --case-name my_first_tactusverif_from_expanded_config \
+     --start-suite
+   ```
+
 
 The suite uses `general.times.start` plus `general.times.forecast_range` for the
 verification date bounds and rounds the forecast end and configured delay up to
