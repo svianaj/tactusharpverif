@@ -118,6 +118,29 @@ verification date bounds and rounds the forecast end and configured delay up to
 the next midnight for its ecFlow start trigger. Ensure the plugin's Tactus
 version is compatible with the one used to run the experiment.
 
+To run both steps in sequence, use [`run_verification.sh`](./run_verification.sh)
+from the directory where you want the expanded TOML written:
+
+```sh
+/path/to/tactusharpverif/run_verification.sh \
+  my_second_test_develop.toml \
+  my_first_tactusverif_from_expanded_config
+```
+
+The script writes
+`my_second_test_develop_expanded_from_config.toml`, temporarily creates a
+`configure_verif` argument file that points to that expanded file and the
+plugin TOML, then launches the case. If a `configure_verif` file already exists
+in the current directory, it is restored after launch. An optional third
+argument sets a different output path:
+
+```sh
+/path/to/tactusharpverif/run_verification.sh \
+  my_second_test_develop.toml \
+  my_first_tactusverif_from_expanded_config \
+  my_custom_expanded_config.toml
+```
+
 ## References and output
 
 Reference FCTABLES must be present in the configured model directories before
