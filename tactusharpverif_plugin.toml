@@ -12,7 +12,7 @@
   delay = "PT36H"  # Wait after forecast end for observations and references to become available.
   PARAMETERS_SFC = ["T2m","RH2m","Q2m","S10m","D10m","Pmsl","CCtot","Pcp","AccPcp1h","Gmax","AccPcp3h","AccPcp6h","AccPcp12h","AccPcp24h"]
   PARAMETERS_UA = ["Z","T","Q","D","S","RH"]
-  PARALLEL = false  # Run one HARP process per parameter; false preserves serial verification.
+  PARALLEL = true  # Run one HARP process per parameter; false preserves serial verification.
   use_Renv = false  # Set false to activate HARP through the configured R module command.
 
 [submission.tactusharpverif_group.BATCH]
@@ -22,7 +22,7 @@
   WALLTIME = "#SBATCH --time=01:05:00"
 
 [submission.tactusharpverif_group.ENV]
-  HARPSCRIPTS_HOME = "/ec/res4/hpcperm/sp3c/DE_Verification/verif_tools/oper-harp-verif_git/" # Must contain verification/point_verif.R
+  HARPSCRIPTS_HOME = "/ec/res4/hpcperm/sp3c/DE_Verification/verif_tools/oper-harp-verif/" # Must contain verification/point_verif.R
   VERIF_HOME= "/perm/sp3c/harmonie_release/tactusharpverif/tactus_harp_output/" # Writable root for generated configs, linked FCTABLES, RDS and plots
   REF_SQLITES="/ec/res4/scratch/snh02/DE_Verification/REF_FCTABLES/" # Shared parent directory, used if REFERENCE_MODEL_PATHS is not set
   OBSTABLES_PATH="/ec/res4/hpcperm/snh02/DE_Verification/merged_obstables_allsources/"
