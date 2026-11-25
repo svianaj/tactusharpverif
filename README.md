@@ -21,15 +21,18 @@ archiving fails the corresponding task rather than being treated as success.
 ## Prerequisites
 
 1. Install the operational HARP scripts from
-   [oper-harp-verif](https://github.com/harphub/oper-harp-verif).
-2. Install the R packages required by those scripts. An isolated `renv`
-   installation can be created with `renv_harp/isolated_install.sh`; the
-   generated `Setenv` script is then referenced by the plugin configuration.
-   Alternatively, install HARP (version 0.2.2 or newer) and the extra packages
+   [oper-harp-verif](https://github.com/harphub/oper-harp-verif). Instead of the last version of the "main" branch, checkout commit d997bb6e361efd2dae781bcefb681795e4fce51e from Aug,31st while some issues with commits after that date are sorted out.
+2. Install the R packages required by those scripts. Several options are available:
+   2.1 Custom HARP installation.
+   - An isolated `renv`installation can be created by using `renv_harp/isolated_install.sh`; on ATOS, it can be sent as a job to the queue. The
+   generated `Setenv` file is then referenced by the plugin configuration and sourced before starting harp scripts. This is activated by setting use_Renv = true in tactusharpverify_plugin.toml, which will source the Setenv file.
+   - Alternatively, install HARP (version 0.2.2 or newer) and the extra packages
    used by the operational scripts, including `here`, `argparse`, `pracma`,
    `pals`, `shinyWidgets`, `cowplot`, `scico`, and `sf`, and make them available
    through the configured R modules.
-3. Configure the plugin settings in
+  2.2 (Only on ATOS): Make use of a pre-generated harp module. This is activated by setting use_Renv = false in tactusharpverify_plugin.toml, which will use the command set in R_module_load prior to starting any harp script. and no longer requires the renv script.
+Added the module command to the example configuration and documented both options.
+4. Configure the plugin settings in
    [`tactusharpverif_plugin.toml`](./tactusharpverif_plugin.toml). In particular:
    - `HARPSCRIPTS_HOME` must contain `verification/point_verif.R`.
    - `VERIF_HOME` must be writable by the Tactus task user.
