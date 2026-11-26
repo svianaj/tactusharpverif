@@ -21,7 +21,7 @@ archiving fails the corresponding task rather than being treated as success.
 ## Prerequisites
 
 1. Install the operational HARP scripts from
-   [oper-harp-verif](https://github.com/harphub/oper-harp-verif). Instead of the last version of the "main" branch, checkout commit d997bb6e361efd2dae781bcefb681795e4fce51e from Aug,31st while some issues with commits after that date are sorted out.
+   [oper-harp-verif](https://github.com/harphub/oper-harp-verif). Use the most recent version of the "main" branch.
 2. Install the R packages required by those scripts. Several options are available:
    2.1 Custom HARP installation.
    - An isolated `renv`installation can be created by using `renv_harp/isolated_install.sh`; on ATOS, it can be sent as a job to the queue. The
@@ -76,7 +76,13 @@ Use the expanded configuration of the Tactus experiment so that the original
 SQLite paths are retained when the verification case is created.
 
 1. Expand the experiment configuration (for example,
-   `my_second_test_develop.toml`) using an `expand_for_verif.toml` containing:
+   `my_second_test_develop.toml`):
+
+   ```sh
+   tactus case --config-file my_second_test_develop.toml expand_for_verif.toml \
+     --expand-config --o my_second_test_develop_expanded_from_config.toml
+   ```
+   Here `expand_for_verif.toml` defines which parts of the original config file will be expanded. Please note that the expansion should be run by the same user who ran the case, in order to get the correct paths to the sqlites:
 
    ```toml
    [macros]
@@ -95,31 +101,52 @@ SQLite paths are retained when the verification case is created.
    os_macros = ["USER"]
    ```
 
-   ```sh
-   tactus case --config-file my_second_test_develop.toml expand_for_verif.toml \
-     --expand-config --o my_second_test_develop_expanded_from_config.toml
-   ```
-
-2. Launch the verification using both the expanded experiment configuration and
+3. Give a "case name" to the verification exercise, and launch the verification plugin using both the expanded experiment configuration and
    the plugin configuration:
-
    ```sh
-   tactus case ?configure_verif --case-name my_first_tactusverif_from_expanded_config \
-     --start-suite
+   tactus case --config-file /path/to/my_second_test_develop_expanded_from_config.toml /path/to/tactusharpverif_plugin.toml \
+   --case-name my_first_tactusverif_from_expanded_config --start-suite
    ```
-
-   Supply these config files to the command:
-
+   or alternatively, create a file e.g. configure_verif with the config files:
    ```text
    --config-file
    /path/to/my_second_test_develop_expanded_from_config.toml
    /path/to/tactusharpverif_plugin.toml
    ```
+   and launch the plugin with:
+   ```sh
+   tactus case ?configure_verif --case-name my_first_tactusverif_from_expanded_config \
+     --start-suite
+   ```
+
 
 The suite uses `general.times.start` plus `general.times.forecast_range` for the
 verification date bounds and rounds the forecast end and configured delay up to
 the next midnight for its ecFlow start trigger. Ensure the plugin's Tactus
 version is compatible with the one used to run the experiment.
+
+To run both steps in sequence, use [`run_verification.sh`](./run_verification.sh)
+from the directory where you want the expanded TOML written:
+
+```sh
+/path/to/tactusharpverif/run_verification.sh \
+  my_second_test_develop.toml \
+  my_first_tactusverif_from_expanded_config
+```
+
+The script writes
+`my_second_test_develop_expanded_from_config.toml`, temporarily creates a
+`configure_verif` argument file that points to that expanded file and the
+plugin TOML, then launches the case. If a `configure_verif` file already exists
+in the current directory, it is restored after launch. An optional third
+argument sets a different output path:
+
+```sh
+/path/to/tactusharpverif/run_verification.sh \
+  my_second_test_develop.toml \
+  my_first_tactusverif_from_expanded_config \
+  my_custom_expanded_config.toml
+```
 
 ## References and output
 
