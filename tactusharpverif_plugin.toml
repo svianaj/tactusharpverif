@@ -30,7 +30,7 @@
   REFERENCE_MODEL_PATHS=["/ec/res4/scratch/snh02/DE_Verification/REF_FCTABLES/"] # Shared parent, or one parent per name in REFERENCE_MODEL_NAMES
   OBS_STEP=3 # Positive whole-hour observation interval used to construct HARP lead times
   Renv_conf="/perm/sp3c/harmonie_release/tactusharpverif/renv_harp/Setenv"  # Shell script that activates the HARP R environment
-  R_module_load="module load prgenv/gnu && module use /perm/sp3c/modulefiles && module load harp" # Alternative HARP R module activation command
+  R_module_load="module use /perm/acrd/apps/modulefiles && module load harp"
   ECFS_ARCHIVE_RELPATH_HARPOUTPUT="tactus/harp_outputs/cases/" # Relative ECFS destination for this case's RDS and PNG outputs
 
 [submission.tactusharpverif_group.MODULES]
