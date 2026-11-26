@@ -100,17 +100,38 @@ class ConfigHarpverify:
 
         self.start = self._required_setting("general.times.start")
         start_datetime = self._parse_datetime(self.start, "general.times.start")
-        self.forecast_range = self._required_setting("general.times.forecast_range")
-        self.forecast_range_nr = self._duration_to_hours(self.forecast_range)
-        if self.forecast_range_nr < 0:
-            raise ValueError("general.times.forecast_range must not be negative")
+        self.forecast_range = self.platform.get_value(
+            "general.times.forecast_range"
+        )
+        configured_end = self.platform.get_value("general.times.end")
+        if configured_end not in (None, ""):
+            end_datetime = self._parse_datetime(configured_end, "general.times.end")
+            duration_seconds = (end_datetime - start_datetime).total_seconds()
+            if duration_seconds < 0:
+                raise ValueError(
+                    "general.times.end must not be earlier than "
+                    "general.times.start"
+                )
+            if duration_seconds % 3600:
+                raise ValueError(
+                    "general.times.end must be a whole number of hours after "
+                    "general.times.start"
+                )
+            self.forecast_range_nr = int(duration_seconds // 3600)
+        else:
+            self.forecast_range = self._required_setting(
+                "general.times.forecast_range"
+            )
+            self.forecast_range_nr = self._duration_to_hours(self.forecast_range)
+            if self.forecast_range_nr < 0:
+                raise ValueError("general.times.forecast_range must not be negative")
+            end_datetime = start_datetime + timedelta(hours=self.forecast_range_nr)
         if self.forecast_range_nr % self.obs_step:
             raise ValueError(
-                "general.times.forecast_range must be divisible by OBS_STEP so the "
-                "generated HARP lead-time sequence reaches the forecast end"
+                "The verification period must be divisible by OBS_STEP so the "
+                "generated HARP lead-time sequence reaches its end"
             )
 
-        end_datetime = start_datetime + timedelta(hours=self.forecast_range_nr)
         self.end = end_datetime.strftime("%Y-%m-%dT%H:%M:%SZ")
         self.startyyyymmddhh = start_datetime.strftime("%Y%m%d%H")
         self.endyyyymmddhh = end_datetime.strftime("%Y%m%d%H")

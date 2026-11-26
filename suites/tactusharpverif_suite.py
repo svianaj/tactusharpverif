@@ -43,12 +43,11 @@ class TactusharpverifSuiteDefinition(SuiteDefinition):
         ).as_posix()
 
         # Wait until the forecast has ended and observations are expected to be available.
-        start_datetime = as_datetime(self.config_verif.start)
-        forecast_range = as_timedelta(self.config_verif.forecast_range)
+        end_datetime = as_datetime(self.config_verif.end)
         delay = as_timedelta(config["submission.tactusharpverif_group.delay"])
         if delay < timedelta(0):
             raise ValueError("submission.tactusharpverif_group.delay must not be negative")
-        end_date = _round_up_to_day(start_datetime + forecast_range)
+        end_date = _round_up_to_day(end_datetime)
         delay_date = _round_up_to_day(end_date + delay)
         delay_date_julian = as_julian(delay_date.strftime("%Y%m%d"))
         logger.info(
