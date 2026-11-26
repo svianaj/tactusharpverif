@@ -120,10 +120,13 @@ SQLite paths are retained when the verification case is created.
    ```
 
 
-The suite uses `general.times.start` plus `general.times.forecast_range` for the
-verification date bounds and rounds the forecast end and configured delay up to
-the next midnight for its ecFlow start trigger. Ensure the plugin's Tactus
-version is compatible with the one used to run the experiment.
+The suite uses `general.times.start` and, when configured, `general.times.end`
+for the verification date bounds. If `general.times.end` is absent, the end is
+calculated from `general.times.start` plus `general.times.forecast_range`. The
+verification period must be divisible by `OBS_STEP`; the suite rounds the
+effective end and configured delay up to the next midnight for its ecFlow start
+trigger. Ensure the plugin's Tactus version is compatible with the one used to
+run the experiment.
 
 To run both steps in sequence, use [`run_verification.sh`](./run_verification.sh)
 from the directory where you want the expanded TOML written:
