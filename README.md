@@ -170,3 +170,33 @@ For variables whose units differ between the experiment and references, review
 the scaling settings in the selected `set_params_det.R` or `set_params_eps.R`
 file. The corresponding operational scaling file is maintained in the HARP
 scripts installation under `verification/set_params.R`.
+
+## Visualize verification results on ATOS
+
+After verification has produced RDS and PNG output, launch both HARP Shiny apps
+from an ATOS terminal:
+
+```sh
+# Load the same HARP R environment used by the verification task first.
+python3 /path/to/tactusharpverif/visualize_verification.py
+```
+
+The script reads `VERIF_HOME` and `HARPSCRIPTS_HOME` from the plugin
+[`tactusharpverif_plugin.toml`](./tactusharpverif_plugin.toml) by default;
+environment variables and the `--verif-home` / `--harpscripts-home` options
+override those values.
+
+The script starts the interactive RDS app on port `9999` and the PNG app on
+port `9998`. In the ATOS virtual desktop, open Firefox and visit the two URLs
+printed by the script. It also prints an SSH port-forwarding command using the
+`HOST` environment variable; replace the displayed `<ATOS_HOST>` placeholder
+with the ATOS host running the apps if `HOST` is unset. Ports can be changed
+with `--dynamic-port PORT` and
+`--static-port PORT`; the script checks that the selected ports are distinct
+and available. Both apps start browsing at `VERIF_HOME`, so no case name is
+required. The script can also receive `--verif-home PATH` and
+`--harpscripts-home PATH` instead of the environment variables or TOML values.
+
+App output is logged to `VERIF_HOME/dynamicapp.log` and
+`VERIF_HOME/visapp.log`. Keep the ATOS session available while using the apps;
+load/activate the HARP R environment before launching the script.
