@@ -3,6 +3,7 @@
 
 import argparse
 import os
+import shlex
 import shutil
 import socket
 import subprocess
@@ -66,16 +67,14 @@ def fail(message):
     raise SystemExit(1)
 
 
-def configured_paths(args):
-    """Resolve paths in CLI, environment, plugin TOML precedence order."""
+def configured_settings(args):
+    """Resolve paths and R activation settings from the plugin configuration."""
     verif_home = args.verif_home or os.environ.get("VERIF_HOME")
     harpscripts_home = args.harpscripts_home or os.environ.get("HARPSCRIPTS_HOME")
-    if verif_home and harpscripts_home:
-        return verif_home, harpscripts_home
     if tomllib is None:
         fail(
             "reading plugin TOML requires Python 3.11+ or the 'tomli'/'toml' "
-            "package; set both VERIF_HOME and HARPSCRIPTS_HOME to bypass TOML"
+            "package"
         )
 
     config_path = args.config.expanduser().resolve()
@@ -88,11 +87,13 @@ def configured_paths(args):
     except ValueError as error:
         fail(f"invalid plugin TOML {config_path}: {error}")
 
-    env_config = (
-        config.get("submission", {})
-        .get("tactusharpverif_group", {})
-        .get("ENV", {})
-    )
+    submission_config = config.get("submission", {})
+    if not isinstance(submission_config, dict):
+        fail("plugin TOML setting [submission] must be a table")
+    group_config = submission_config.get("tactusharpverif_group", {})
+    if not isinstance(group_config, dict):
+        fail("plugin TOML setting [submission.tactusharpverif_group] must be a table")
+    env_config = group_config.get("ENV", {})
     if not isinstance(env_config, dict):
         fail(
             "plugin TOML setting [submission.tactusharpverif_group.ENV] "
@@ -114,7 +115,28 @@ def configured_paths(args):
             "set HARPSCRIPTS_HOME, pass --harpscripts-home, or configure "
             "HARPSCRIPTS_HOME in the plugin TOML"
         )
-    return verif_home, harpscripts_home
+
+    use_renv = group_config.get("use_Renv")
+    if not isinstance(use_renv, bool):
+        fail(
+            "plugin TOML setting submission.tactusharpverif_group.use_Renv "
+            "must be true or false"
+        )
+    if use_renv:
+        renv_conf = env_config.get("Renv_conf")
+        if not isinstance(renv_conf, str) or not renv_conf.strip():
+            fail("plugin TOML must set ENV.Renv_conf when use_Renv is true")
+        renv_conf_path = Path(renv_conf).expanduser().resolve()
+        if not renv_conf_path.is_file():
+            fail(f"R environment activation script not found: {renv_conf_path}")
+        activation = f"source {shlex.quote(str(renv_conf_path))}"
+    else:
+        module_load = env_config.get("R_module_load")
+        if not isinstance(module_load, str) or not module_load.strip():
+            fail("plugin TOML must set ENV.R_module_load when use_Renv is false")
+        activation = module_load
+
+    return verif_home, harpscripts_home, activation
 
 
 def available_port(port):
@@ -172,16 +194,21 @@ def wait_until_ready(apps):
 
 def main():
     args = parse_args()
-    configured_verif_home, configured_harpscripts_home = configured_paths(args)
+    configured_verif_home, configured_harpscripts_home, activation = (
+        configured_settings(args)
+    )
     verif_home = Path(configured_verif_home).expanduser().resolve()
     harpscripts_home = Path(configured_harpscripts_home).expanduser().resolve()
     if not verif_home.is_dir():
         fail(f"VERIF_HOME is not a directory: {verif_home}")
     if not harpscripts_home.is_dir():
         fail(f"HARPSCRIPTS_HOME is not a directory: {harpscripts_home}")
-    rscript = shutil.which("Rscript")
-    if rscript is None:
-        fail("Rscript was not found on PATH; load the configured HARP R environment first")
+    bash = shutil.which("bash")
+    if bash is None:
+        fail(
+            "bash was not found on PATH; it is required to activate the "
+            "configured R environment"
+        )
 
     visualization_dir = harpscripts_home / "visualization"
     dynamic_launcher = visualization_dir / "launch_dynamicapp_atos.R"
@@ -200,7 +227,6 @@ def main():
         (
             "Interactive RDS app",
             [
-                rscript,
                 str(dynamic_launcher),
                 str(verif_home),
                 str(args.dynamic_port),
@@ -211,7 +237,6 @@ def main():
         (
             "PNG visualization app",
             [
-                rscript,
                 str(static_launcher),
                 "-img_dir",
                 str(verif_home),
@@ -227,9 +252,13 @@ def main():
     apps = []
     try:
         for name, command, port, log_path in commands:
+            shell_command = (
+                f"cd -- {shlex.quote(str(harpscripts_home))} && "
+                f"{activation} && exec Rscript {shlex.join(command)}"
+            )
             with log_path.open("w", encoding="utf-8") as log:
                 process = subprocess.Popen(
-                    command,
+                    [bash, "-lc", shell_command],
                     cwd=harpscripts_home,
                     stdout=log,
                     stderr=subprocess.STDOUT,

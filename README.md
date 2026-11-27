@@ -177,7 +177,6 @@ After verification has produced RDS and PNG output, launch both HARP Shiny apps
 from an ATOS terminal:
 
 ```sh
-# Load the same HARP R environment used by the verification task first.
 python3 /path/to/tactusharpverif/visualize_verification.py
 ```
 
@@ -185,6 +184,9 @@ The script reads `VERIF_HOME` and `HARPSCRIPTS_HOME` from the plugin
 [`tactusharpverif_plugin.toml`](./tactusharpverif_plugin.toml) by default;
 environment variables and the `--verif-home` / `--harpscripts-home` options
 override those values.
+It also activates the configured R installation before launching either app:
+with `use_Renv = true`, it sources `ENV.Renv_conf`; with `use_Renv = false`, it
+runs `ENV.R_module_load`.
 
 The script starts the interactive RDS app on port `9999` and the PNG app on
 port `9998`. In the ATOS virtual desktop, open Firefox and visit the two URLs
@@ -198,5 +200,4 @@ required. The script can also receive `--verif-home PATH` and
 `--harpscripts-home PATH` instead of the environment variables or TOML values.
 
 App output is logged to `VERIF_HOME/dynamicapp.log` and
-`VERIF_HOME/visapp.log`. Keep the ATOS session available while using the apps;
-load/activate the HARP R environment before launching the script.
+`VERIF_HOME/visapp.log`. Keep the ATOS session available while using the apps.
