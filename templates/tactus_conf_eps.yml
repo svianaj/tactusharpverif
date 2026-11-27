@@ -3,10 +3,9 @@ verif:
   fcst_model:
     - model_1
     - model_2
-  lead_time: seq(0,6,3)
-  lead_time_param:
-    UA: seq(0,6,3)        # same as lead_time, so no effect
-  lead_time_batch_size: 999  # >= number of lead times, so a single batch
+  lead_time: seq(0,24,3)
+  lead_time_param: NULL
+  lead_time_batch_size: NULL
   by_step: "6h"
   fcst_type: "eps"                          # det or eps
   domains:                                  # what domains to verify ("All" will use all stations available)
